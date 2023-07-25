@@ -1,0 +1,6 @@
+[submodule "vendor/glfw"]
+	path = vendor/glfw
+	url = https://github.com/Strox0/glfw.git
+[submodule "vendor/opengl"]
+	path = vendor/opengl
+	url = https://github.com/KhronosGroup/OpenGL-Registry.git
