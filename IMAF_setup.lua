@@ -28,7 +28,8 @@ project "IMAF"
 		"IMAF/src",
 		"vendor/imgui",
 		"vendor/glfw/include",
-		"vendor/opengl/api"
+		"vendor/opengl/api",
+		"vendor/KHR"
 	}
 
 	links {
