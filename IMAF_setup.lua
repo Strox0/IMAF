@@ -32,7 +32,8 @@ project "IMAF"
 	}
 
 	links {
-		"glfw"		
+		"glfw",
+		"opengl32"
 	}
 
 	targetdir ("IMAF/bin/" .. outputdir .. "/")
@@ -70,8 +71,9 @@ project "Test_App"
 	includedirs {
 		"Test_App/src/",
 		"vendor/imgui",
-		"vendor/glfw",
-		"vendor/opengl"
+		"vendor/glfw/include",
+		"vendor/opengl/api",
+		"IMAF/src"
 	}
 
 	links {
