@@ -1,0 +1,11 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs
+/IMAF.sln
+*.vcxproj
+/IMAF/IMAF.vcxproj.filters
+/IMAF/bin/Debug-x86_64
+/IMAF/intermediate/Debug-x86_64/Debug
+*.user
