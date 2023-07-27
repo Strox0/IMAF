@@ -9,3 +9,4 @@
 /IMAF/bin/Debug-x86_64
 /IMAF/intermediate/Debug-x86_64/Debug
 *.user
+/Test_App/imgui.ini
