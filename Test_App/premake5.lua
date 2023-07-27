@@ -1,32 +1,28 @@
-project "IMAF"
-	kind "StaticLib"
+project "Test_App"
+	kind "WindowedApp"
 	language "C++"
 	cppdialect "C++20"
 	staticruntime "off"
 
+	targetdir ("bin/" .. outputdir .. "/")
+	objdir ("intermediate/" .. outputdir .. "/")
+
 	files {
 		"src/**.cpp",
-		"src/**.h",
-		"../vendor/imgui/**.cpp",
-		"../vendor/imgui/**.h",
-		"../vendor/opengl/api/**.h"
+		"src/**.h"
 	}
 
 	includedirs {
-		"src",
+		"src/",
 		"../vendor/imgui",
 		"../vendor/glfw/include",
 		"../vendor/opengl/api",
-		"../vendor/khr"
+		"../IMAF/src"
 	}
 
 	links {
-		"glfw",
-		"opengl32"
+		"IMAF"
 	}
-
-	targetdir ("bin/" .. outputdir .. "/")
-	objdir ("intermediate/" .. outputdir .. "/")
 
 	filter "system:windows"
       systemversion "latest"

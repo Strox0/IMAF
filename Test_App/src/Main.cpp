@@ -1,4 +1,4 @@
-#include "Application.h"
+#include "IMAF/Application.h"
 #include <windows.h>
 
 int WINAPI wWinMain(HINSTANCE hInstance,HINSTANCE prevhInstance,PWSTR pCmdLine,int cmdShow)

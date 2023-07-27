@@ -10,3 +10,6 @@
 /IMAF/intermediate/Debug-x86_64/Debug
 *.user
 /Test_App/imgui.ini
+/IMAF/intermediate/Debug-x86_64
+/Test_App/bin/Debug-x86_64
+/Test_App/intermediate/Debug-x86_64
