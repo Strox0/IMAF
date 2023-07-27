@@ -8,6 +8,8 @@
 
 #include <Windows.h>
 
+#include "fonts.h"
+
 #define ValidTitlebarArea(area) (area >= 0.f && area <= 1.f)
 
 static void glfw_error_callback(int error, const char* description)
@@ -20,10 +22,15 @@ namespace IMAF
 	
 	Application::Application(const AppProperties& props) : m_props(props) 
 	{
-		Init();
+		if (Init())
+		{
+			MessageBoxA(NULL, "Application Initalization Failed", "Fatal Error", MB_OK | MB_ICONERROR);
+			Shutdown();
+			ExitProcess(1);
+		}
 	}
 
-	bool Application::Init() 
+	bool Application::Init()
 	{
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
@@ -31,7 +38,7 @@ namespace IMAF
 
 		glfwSetErrorCallback(glfw_error_callback);
 		if (!glfwInit())
-			return false;
+			return true;
 
 		// GL 3.0 + GLSL 130
 		const char* glsl_version = "#version 460";
@@ -61,7 +68,7 @@ namespace IMAF
 		// Create window with graphics context
 		mp_window = glfwCreateWindow(m_props.width, m_props.height, m_props.name, monitor, NULL);
 		if (mp_window == NULL)
-			return false;
+			return true;
 		glfwMakeContextCurrent(mp_window);
 
 		if (glfwGetWindowAttrib(mp_window, GLFW_TITLEBAR))
@@ -80,14 +87,15 @@ namespace IMAF
 			glfwSetWindowPos(mp_window, pos_x, pos_y);
 		}
 
-		// Setup Dear ImGui context
-		//io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;           // Enable Docking
+		
+		if (m_props.imgui_docking)
+			io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
 		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
 		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;       // Enable Keyboard Controls
 		//io.ConfigViewportsNoAutoMerge = true;
 		//io.ConfigViewportsNoTaskBarIcon = true;
 
-		ImGui::StyleColorsDark();
 		Application::SetDarkColorTheme();
 
 		// When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
@@ -103,12 +111,16 @@ namespace IMAF
 		ImGui_ImplOpenGL3_Init(glsl_version);
 
 		//Adding default font
-		//ImFontConfig fontConfig;
-		//fontConfig.FontDataOwnedByAtlas = false;
-		//io.Fonts->AddFontFromMemoryTTF((void*)g_Regular, sizeof(g_Regular), m_props.font_size, &fontConfig);
-		//io.Fonts->AddFontFromMemoryTTF((void*)g_SemiBold, sizeof(g_SemiBold), m_props.font_size, &fontConfig);
+		ImFontConfig fontConfig;
+		fontConfig.FontDataOwnedByAtlas = false;
+		io.Fonts->AddFontFromMemoryTTF((void*)&g_FontRegular[0], sizeof(g_FontRegular), m_props.font_size, &fontConfig);
+		io.Fonts->AddFontFromMemoryTTF((void*)&g_FontLight[0], sizeof(g_FontLight), m_props.font_size, &fontConfig);
+		io.Fonts->AddFontFromMemoryTTF((void*)&g_FontMedium[0], sizeof(g_FontMedium), m_props.font_size, &fontConfig);
+		io.Fonts->AddFontFromMemoryTTF((void*)&g_FontSemibold[0], sizeof(g_FontSemibold), m_props.font_size, &fontConfig);
+		io.Fonts->AddFontFromMemoryTTF((void*)& g_FontBold[0], sizeof(g_FontBold), m_props.font_size, &fontConfig);
+		io.Fonts->AddFontFromMemoryTTF((void*)&g_FontExtrabold[0], sizeof(g_FontExtrabold), m_props.font_size, &fontConfig);
 
-		return true;
+		return false;
 	}
 
 	void Application::AddPanel(std::shared_ptr<Panel> panel)
@@ -140,11 +152,14 @@ namespace IMAF
 	void Application::Shutdown()
 	{
 		// Cleanup
-		ImGui_ImplOpenGL3_Shutdown();
-		ImGui_ImplGlfw_Shutdown();
+		if (ImGui::GetIO().BackendRendererUserData != nullptr)
+			ImGui_ImplOpenGL3_Shutdown();
+		if (ImGui::GetIO().BackendPlatformUserData != nullptr)
+			ImGui_ImplGlfw_Shutdown();
 		ImGui::DestroyContext();
 
-		glfwDestroyWindow(mp_window);
+		if (glfwInit())
+			glfwDestroyWindow(mp_window);
 		glfwTerminate();
 	}
 

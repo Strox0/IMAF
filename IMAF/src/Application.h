@@ -10,6 +10,14 @@
 #define RGB2_IMVEC4(r,g,b) ImVec4{ r / 255.0f , g / 255.0f ,b / 255.0f, 1.0f }
 #define RGBA2_IMVEC4(r,g,b,a) ImVec4{ r / 255.0f , g / 255.0f ,b / 255.0f, a }
 
+#define FONT_DEFAULT				0
+#define FONT_NORMAL					0
+#define FONT_LIGHT_NORMAL			1
+#define FONT_MEDIUM_NORMAL			2
+#define FONT_SEMIBOLD_NORMAL		3
+#define FONT_BOLD_NORMAL			4
+#define FONT_EXTRABOLD_NORMAL		5
+
 struct GLFWwindow;
 
 namespace IMAF 
