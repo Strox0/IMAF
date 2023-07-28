@@ -30,6 +30,11 @@ namespace IMAF
 		}
 	}
 
+	Application::~Application()
+	{
+		Shutdown();
+	}
+
 	bool Application::Init()
 	{
 		IMGUI_CHECKVERSION();
@@ -127,6 +132,11 @@ namespace IMAF
 	{
 		if (panel != nullptr)
 			m_panels.push_back(panel);
+	}
+
+	void Application::SetUp(std::function<void()> func)
+	{
+		mp_setup_func = func;
 	}
 
 	void Application::Run()

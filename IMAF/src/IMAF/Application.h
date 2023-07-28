@@ -76,7 +76,6 @@ namespace IMAF
 		std::vector<std::shared_ptr<Panel>> m_panels;
 
 		std::function<void()> mp_setup_func;
-
 	};
 
 }
