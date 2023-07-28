@@ -1,3 +1,5 @@
+include "../vendor/glfw"
+
 project "IMAF"
 	kind "StaticLib"
 	language "C++"
