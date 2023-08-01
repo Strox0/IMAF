@@ -1,5 +1,5 @@
-#include "Application.h"
-#include "Panel.h"
+#include "IMAF/Application.h"
+#include "IMAF/Panel.h"
 #include <windows.h>
 
 class ExampleLayer : public IMAF::Panel

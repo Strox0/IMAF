@@ -28,7 +28,7 @@ project "IMAF"
 	}
 
 	targetdir ("bin/" .. outputdir .. "/")
-	objdir ("intermediate/" .. outputdir .. "/")
+	objdir ("bin-int/" .. outputdir .. "/")
 
 	filter "system:windows"
       systemversion "latest"
