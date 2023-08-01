@@ -1,4 +1,4 @@
-#include "Application.h"
+#include "IMAF/Application.h"
 
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -8,7 +8,7 @@
 
 #include <Windows.h>
 
-#include "fonts.h"
+#include "IMAF/fonts.h"
 
 #define ValidTitlebarArea(area) (area >= 0.f && area <= 1.f)
 #include <string>
@@ -154,6 +154,11 @@ namespace IMAF
 			m_panels.push_back(panel);
 			m_panels_mutex.unlock();
 		}
+	}
+
+	void Application::SetUp(std::function<void()> func)
+	{
+		mp_setup_func = func;
 	}
 
 	void Application::Run()

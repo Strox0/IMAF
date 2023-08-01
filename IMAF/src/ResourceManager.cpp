@@ -1,4 +1,4 @@
-#include "ResourceManager.h"
+#include "IMAF/ResourceManager.h"
 #include <Windows.h>
 
 IMAF::ResourceManager::ResourceManager(int resc_id, const wchar_t* resc_type) : m_id(resc_id),m_type(resc_type)
