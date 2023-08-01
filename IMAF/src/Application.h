@@ -4,11 +4,12 @@
 
 #include <memory>
 #include <functional>
+#include <mutex>
 
 #include "Panel.h"
 
-#define RGB2_IMVEC4(r,g,b) ImVec4{ r / 255.0f , g / 255.0f ,b / 255.0f, 1.0f }
-#define RGBA2_IMVEC4(r,g,b,a) ImVec4{ r / 255.0f , g / 255.0f ,b / 255.0f, a }
+#define RGB2_IMVEC4(r,g,b) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, 1.0f )
+#define RGBA2_IMVEC4(r,g,b,a) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, a )
 
 #define FONT_DEFAULT				0
 #define FONT_NORMAL					0
@@ -26,15 +27,17 @@ namespace IMAF
 	{
 		const char* name;
 		
-		int width = 720;
-		int height = 500;
+		int width = 0;
+		int height = 0;
 		float font_size = 18;
 
 		bool costum_titlebar = false;
 		bool resizeable = true;
 		bool fullscreen = false;
+		bool maximized = false;
 		bool imgui_docking = false;
 		bool center_window = true;
+		bool gen_ini = false;
 
 		//Reletive area startig from the top of the application
 		//1.0 = whole app is titlebar
@@ -54,6 +57,7 @@ namespace IMAF
 		void SetUp(std::function<void()> func);
 
 		void Run();
+		void Exit();
 
 		static void SetPrurpleDarkColorTheme();
 		static void SetDarkColorTheme();
@@ -61,6 +65,7 @@ namespace IMAF
 		static void SetDefaultProperties(AppProperties& props);
 
 		void AddPanel(std::shared_ptr<Panel> panel);
+		void RemovePanel(uint64_t id);
 
 	private:
 		bool Init();
@@ -69,10 +74,15 @@ namespace IMAF
 		void BeginRender();
 		void EndRender();
 
+		void BeginRenderDockspace();
+
 	private:
 		GLFWwindow* mp_window = nullptr;
 		AppProperties m_props;
 
+		bool m_should_exit = false;
+
+		std::mutex m_panels_mutex;
 		std::vector<std::shared_ptr<Panel>> m_panels;
 
 		std::function<void()> mp_setup_func;
