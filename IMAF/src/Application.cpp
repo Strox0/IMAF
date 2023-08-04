@@ -22,6 +22,7 @@ namespace IMAF
 	
 	Application::Application(const AppProperties& props) : m_props(props) 
 	{
+		m_props.costum_titlebar = false;//DISABLE COUSTUM TITLEBAR
 		if (Init())
 		{
 			MessageBoxA(NULL, "Application Initalization Failed", "Fatal Error", MB_OK | MB_ICONERROR);
@@ -74,6 +75,11 @@ namespace IMAF
 			m_props.height = screen_height * 0.85;
 		}
 
+		if (m_props.min_height != 0 && m_props.min_width != 0 && m_props.resizeable)
+		{
+			glfwSetWindowSizeLimits(mp_window, m_props.min_width, m_props.min_height, GLFW_DONT_CARE, GLFW_DONT_CARE);
+		}
+
 		if (m_props.costum_titlebar && ValidTitlebarArea(m_props.costum_titlebar_area))
 			glfwWindowHint(GLFW_TITLEBAR, true);
 
@@ -114,6 +120,9 @@ namespace IMAF
 		//io.ConfigViewportsNoAutoMerge = true;
 		//io.ConfigViewportsNoTaskBarIcon = true;
 
+		if (!m_props.gen_ini)
+			io.IniFilename = NULL;
+
 		Application::SetPrurpleDarkColorTheme();
 
 		// When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
@@ -127,7 +136,10 @@ namespace IMAF
 		style.WindowBorderSize = 0.0f;
 		style.FramePadding = { 8.0f,6.0f };
 		style.GrabRounding = 6.0f;
-		style.WindowPadding = { 4.f,4.f };
+		style.WindowPadding = { 10.f,4.f };
+
+		if (!m_props.costum_titlebar)
+			style.Colors[ImGuiCol_DockingEmptyBg] = RGBA2_IMVEC4(0, 0, 0, 0);
 
 		// Setup Platform/Renderer backends
 		ImGui_ImplGlfw_InitForOpenGL(mp_window, true);
@@ -182,7 +194,15 @@ namespace IMAF
 
 			//End dockspace window
 			if (m_props.imgui_docking)
+			{
+				static bool first_run = true;
+				if (mp_def_docking && first_run)
+				{
+					mp_def_docking(m_dockspace_id);
+					first_run = false;
+				}
 				ImGui::End();
+			}
 			EndRender();
 		}
 	}
@@ -280,16 +300,25 @@ namespace IMAF
 		ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
 			| ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoDocking;
 
-		if (!m_props.gen_ini)
+		if (m_props.gen_ini)
 			flags |= ImGuiWindowFlags_NoSavedSettings;
-
+		
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
+
+		if (m_props.costum_titlebar)
+			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {8.f,8.f});
+		else
+			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0.f,0.f });
+		
 		ImGui::PushStyleColor(ImGuiCol_::ImGuiCol_WindowBg, ImVec4(0.09f, 0.09f, 0.10f, 1.00f));
 		ImGui::Begin("DockingWindow", nullptr, flags);
 
-		ImGui::DockSpace(ImGui::GetID("Dockspace"));
+		if (m_dockspace_id == 0)
+			m_dockspace_id = ImGui::GetID("MyDockspace");
 
-		ImGui::PopStyleVar();
+		ImGui::DockSpace(m_dockspace_id);
+
+		ImGui::PopStyleVar(2);
 		ImGui::PopStyleColor();
 	}
 
@@ -298,6 +327,16 @@ namespace IMAF
 		m_panels_mutex.lock();
 		std::erase_if(m_panels, [id](std::shared_ptr<IMAF::Panel> ptr) -> bool { return ptr->GetId() == id ? true : false; });
 		m_panels_mutex.unlock();
+	}
+
+    void Application::AddDefDockingSetup(std::function<void(ImGuiID)> setup_func)
+    {
+		mp_def_docking = setup_func;
+    }
+
+    ImGuiID Application::GetDockspaceId() const
+	{
+		return m_dockspace_id == 0 ? 0 : m_dockspace_id;
 	}
 
 	void Application::SetPrurpleDarkColorTheme()
@@ -333,9 +372,6 @@ namespace IMAF
 		colors[ImGuiCol_Separator] = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
 		colors[ImGuiCol_SeparatorHovered] = ImVec4(0.55f, 0.27f, 0.73f, 199.00f);
 		colors[ImGuiCol_SeparatorActive] = ImVec4(0.44f, 0.23f, 0.66f, 1.00f);
-		colors[ImGuiCol_ResizeGrip] = ImVec4(0.82f, 0.82f, 0.82f, 90.00f);
-		colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.71f, 0.71f, 0.71f, 170.00f);
-		colors[ImGuiCol_ResizeGripActive] = ImVec4(0.30f, 0.30f, 0.30f, 240.00f);
 		colors[ImGuiCol_Tab] = ImVec4(0.43f, 0.26f, 0.60f, 1.00f);
 		colors[ImGuiCol_TabHovered] = ImVec4(0.56f, 0.34f, 0.78f, 1.00f);
 		colors[ImGuiCol_TabActive] = ImVec4(0.73f, 0.48f, 0.91f, 1.00f);
@@ -358,6 +394,9 @@ namespace IMAF
 		colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
 		colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
 		colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
+		colors[ImGuiCol_ResizeGrip] = RGBA2_IMVEC4(186, 124, 238, 180);
+		colors[ImGuiCol_ResizeGripActive] = RGBA2_IMVEC4(199, 129, 255, 200);
+		colors[ImGuiCol_ResizeGripHovered] = RGB2_IMVEC4(106, 49, 132);
 	}
 
 	void Application::SetDarkColorTheme()
@@ -415,8 +454,8 @@ namespace IMAF
 		colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
 		colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
 		colors[ImGuiCol_SeparatorActive] = RGB2_IMVEC4(70, 70, 70);
-		colors[ImGuiCol_ResizeGrip] = RGBA2_IMVEC4(210, 210, 210, 90);
-		colors[ImGuiCol_ResizeGripActive] = RGBA2_IMVEC4(76, 76, 76, 240);
-		colors[ImGuiCol_ResizeGripHovered] = RGBA2_IMVEC4(180, 180, 180, 170);
+		colors[ImGuiCol_ResizeGrip] = ImVec4(0.82f, 0.82f, 0.82f, 90.00f);
+		colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.71f, 0.71f, 0.71f, 170.00f);
+		colors[ImGuiCol_ResizeGripActive] = ImVec4(0.30f, 0.30f, 0.30f, 240.00f);
 	}
 }
