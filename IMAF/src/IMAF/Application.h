@@ -18,6 +18,7 @@
 #define FONT_SEMIBOLD_NORMAL		3
 #define FONT_BOLD_NORMAL			4
 #define FONT_EXTRABOLD_NORMAL		5
+#define FONT_LAST FONT_EXTRABOLD_NORMAL
 
 struct GLFWwindow;
 
@@ -29,9 +30,12 @@ namespace IMAF
 		
 		int width = 0;
 		int height = 0;
+		int min_width = 0;
+		int min_height = 0;
 		float font_size = 18;
 
-		bool costum_titlebar = false;
+		
+
 		bool resizeable = true;
 		bool fullscreen = false;
 		bool maximized = false;
@@ -43,7 +47,8 @@ namespace IMAF
 		//1.0 = whole app is titlebar
 		//0.1 = 10% of the app is titlebar
 		float costum_titlebar_area = 0.f;
-
+		//DOESNT WORK (WIP)
+		bool costum_titlebar = false;
 		AppProperties() : name("My Application") {};
 	};
 
@@ -67,6 +72,10 @@ namespace IMAF
 		void AddPanel(std::shared_ptr<Panel> panel);
 		void RemovePanel(uint64_t id);
 
+		//No need for Begin/End just DockBuilderCode
+		void AddDefDockingSetup(std::function<void(ImGuiID)> setup_func);
+		ImGuiID GetDockspaceId() const;
+
 	private:
 		bool Init();
 		void Shutdown();
@@ -79,6 +88,7 @@ namespace IMAF
 	private:
 		GLFWwindow* mp_window = nullptr;
 		AppProperties m_props;
+		ImGuiID m_dockspace_id = 0;
 
 		bool m_should_exit = false;
 
@@ -86,6 +96,7 @@ namespace IMAF
 		std::vector<std::shared_ptr<Panel>> m_panels;
 
 		std::function<void()> mp_setup_func;
+		std::function<void(ImGuiID)> mp_def_docking;
 	};
 
 }
