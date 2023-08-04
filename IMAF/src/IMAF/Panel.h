@@ -2,6 +2,7 @@
 #include "Random.h"
 #include <limits>
 
+#undef max
 namespace IMAF 
 {
 	class Panel 
