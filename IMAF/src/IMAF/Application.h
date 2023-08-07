@@ -73,7 +73,7 @@ namespace IMAF
 		void RemovePanel(uint64_t id);
 
 		//No need for Begin/End just DockBuilderCode
-		void AddDefDockingSetup(std::function<void(ImGuiID)> setup_func);
+		void AddDefDockingSetup(std::function<void(ImGuiID,bool&)> setup_func);
 		ImGuiID GetDockspaceId() const;
 
 	private:
@@ -96,7 +96,7 @@ namespace IMAF
 		std::vector<std::shared_ptr<Panel>> m_panels;
 
 		std::function<void()> mp_setup_func;
-		std::function<void(ImGuiID)> mp_def_docking;
+		std::function<void(ImGuiID,bool&)> mp_def_docking;
 	};
 
 }

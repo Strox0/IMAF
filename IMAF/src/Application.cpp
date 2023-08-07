@@ -198,8 +198,7 @@ namespace IMAF
 				static bool first_run = true;
 				if (mp_def_docking && first_run)
 				{
-					mp_def_docking(m_dockspace_id);
-					first_run = false;
+					mp_def_docking(m_dockspace_id,first_run);
 				}
 				ImGui::End();
 			}
@@ -329,7 +328,7 @@ namespace IMAF
 		m_panels_mutex.unlock();
 	}
 
-    void Application::AddDefDockingSetup(std::function<void(ImGuiID)> setup_func)
+    void Application::AddDefDockingSetup(std::function<void(ImGuiID,bool&)> setup_func)
     {
 		mp_def_docking = setup_func;
     }
