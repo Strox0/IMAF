@@ -91,6 +91,7 @@ namespace IMAF
 		ImGuiID m_dockspace_id = 0;
 
 		bool m_should_exit = false;
+		bool m_exited = true;
 
 		std::mutex m_panels_mutex;
 		std::vector<std::shared_ptr<Panel>> m_panels;

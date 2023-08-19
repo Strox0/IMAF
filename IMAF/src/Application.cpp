@@ -178,6 +178,7 @@ namespace IMAF
 		if (mp_setup_func)
 			mp_setup_func();
 
+		m_exited = false;
 		while (!glfwWindowShouldClose(mp_window) && !m_should_exit)
 		{
 			BeginRender();
@@ -204,10 +205,16 @@ namespace IMAF
 			}
 			EndRender();
 		}
+		m_exited = true;
 	}
 
 	void Application::Shutdown()
 	{
+		m_should_exit = true;
+		while (!m_exited)
+		{
+			Sleep(5);
+		}
 		// Cleanup
 		if (ImGui::GetIO().BackendRendererUserData != nullptr)
 			ImGui_ImplOpenGL3_Shutdown();
