@@ -5,6 +5,7 @@
 #include <memory>
 #include <functional>
 #include <mutex>
+#include <Windows.h>
 
 #include "Panel.h"
 
@@ -27,15 +28,15 @@ namespace IMAF
 	struct AppProperties
 	{
 		const char* name;
-		
+		const char* ini_file = nullptr;
+
 		int width = 0;
 		int height = 0;
 		int min_width = 0;
 		int min_height = 0;
 		float font_size = 18;
-
 		
-
+		bool dpi_aware = true;
 		bool resizeable = true;
 		bool fullscreen = false;
 		bool maximized = false;
@@ -73,10 +74,33 @@ namespace IMAF
 		void RemovePanel(uint64_t id);
 
 		//No need for Begin/End just DockBuilderCode
+		//Arguments : ImGuiID of the dockspace and a bool reference to the firstrun var, which if false will not run the code again
+		//Firstrun should always be set to false, unless multiple setups are needed, in which case the first run should be checked inside the function
 		void AddDefDockingSetup(std::function<void(ImGuiID,bool&)> setup_func);
 		ImGuiID GetDockspaceId() const;
 
+		void AddScaleCallback(void(*callback)(float, float));
+		void __CallScaleCallback(float x, float y);
+
+		void ReCaclWindowSize();
+
 	private:
+		struct ScreenSize
+		{
+			int x;
+			int y;
+
+			ScreenSize(int x, int y) : x(x), y(y) {};
+			ScreenSize() : x(0), y(0) {};
+
+			bool operator!=(const ScreenSize& other)
+			{
+				return x != other.x || y != other.y;
+			}
+		};
+
+		friend void FrameBufferResizeCallback(GLFWwindow* window, int width, int height);
+
 		bool Init();
 		void Shutdown();
 
@@ -84,6 +108,8 @@ namespace IMAF
 		void EndRender();
 
 		void BeginRenderDockspace();
+
+		IMAF::Application::ScreenSize GetApplicationScreenSize();
 
 	private:
 		GLFWwindow* mp_window = nullptr;
@@ -98,6 +124,9 @@ namespace IMAF
 
 		std::function<void()> mp_setup_func;
 		std::function<void(ImGuiID,bool&)> mp_def_docking;
+		std::function<void(float,float)> mp_uiscale_callback;
+
+		ScreenSize m_screen_size;
 	};
 
 }

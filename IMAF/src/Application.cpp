@@ -6,7 +6,8 @@
 #include "GLES3/gl3.h"
 #include "GLFW/glfw3.h"
 
-#include <Windows.h>
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include "GLFW/glfw3native.h"
 
 #include "IMAF/fonts.h"
 
@@ -17,9 +18,22 @@ static void glfw_error_callback(int error, const char* description)
 	
 }
 
+void __DPICallBack(GLFWwindow* window, float xscale, float yscale)
+{
+	IMAF::Application* app = (IMAF::Application*)glfwGetWindowUserPointer(window);
+	app->__CallScaleCallback(xscale, yscale);
+
+	app->ReCaclWindowSize();
+}
+
+void IMAF::FrameBufferResizeCallback(GLFWwindow* window, int width, int height)
+{
+	IMAF::Application* app = (IMAF::Application*)glfwGetWindowUserPointer(window);
+	app->EndRender();
+}
+
 namespace IMAF 
 {
-	
 	Application::Application(const AppProperties& props) : m_props(props) 
 	{
 		m_props.costum_titlebar = false;//DISABLE COUSTUM TITLEBAR
@@ -42,7 +56,6 @@ namespace IMAF
 		if (!glfwInit())
 			return true;
 
-
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
@@ -55,10 +68,6 @@ namespace IMAF
 		else
 			glfwWindowHint(GLFW_RESIZABLE, false);
 
-		GLFWmonitor* monitor = nullptr;
-		if (m_props.fullscreen) 
-			monitor = glfwGetPrimaryMonitor();
-
 		if (m_props.maximized)
 		{
 			int screen_width = GetSystemMetrics(SM_CXSCREEN);
@@ -67,12 +76,37 @@ namespace IMAF
 			m_props.height = screen_height;
 		}
 
-		if (m_props.width == 0 || m_props.height == 0)
+		if (m_props.width <= 0 || m_props.height <= 0)
 		{
-			float screen_width = GetSystemMetrics(SM_CXSCREEN);
-			float screen_height = GetSystemMetrics(SM_CYSCREEN);
-			m_props.width = screen_width * 0.75;
-			m_props.height = screen_height * 0.85;
+			int screen_width = GetSystemMetrics(SM_CXSCREEN);
+			int screen_height = GetSystemMetrics(SM_CYSCREEN);
+			m_props.width = screen_width * 0.65;
+			m_props.height = screen_height * 0.75;
+		}
+
+		if (m_props.costum_titlebar && ValidTitlebarArea(m_props.costum_titlebar_area))
+			glfwWindowHint(GLFW_TITLEBAR, true);
+
+		GLFWmonitor* monitor = nullptr;
+		if (m_props.fullscreen)
+			monitor = glfwGetPrimaryMonitor();
+
+		mp_window = glfwCreateWindow(m_props.width, m_props.height, m_props.name, monitor, NULL); //Create Window
+		if (mp_window == nullptr)
+			return true;
+
+		m_screen_size = GetApplicationScreenSize();
+
+		glfwSetWindowUserPointer(mp_window, this);
+		glfwMakeContextCurrent(mp_window);
+		glfwSwapInterval(1);
+
+		glfwSetFramebufferSizeCallback(mp_window, IMAF::FrameBufferResizeCallback);
+
+		if (m_props.dpi_aware)
+		{
+			glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+			glfwSetWindowContentScaleCallback(mp_window, __DPICallBack);
 		}
 
 		if (m_props.min_height != 0 && m_props.min_width != 0 && m_props.resizeable)
@@ -80,21 +114,13 @@ namespace IMAF
 			glfwSetWindowSizeLimits(mp_window, m_props.min_width, m_props.min_height, GLFW_DONT_CARE, GLFW_DONT_CARE);
 		}
 
-		if (m_props.costum_titlebar && ValidTitlebarArea(m_props.costum_titlebar_area))
-			glfwWindowHint(GLFW_TITLEBAR, true);
-
-		// Create window with graphics context
-		mp_window = glfwCreateWindow(m_props.width, m_props.height, m_props.name, monitor, NULL);
-		if (mp_window == nullptr)
-			return true;
-
-		glfwMakeContextCurrent(mp_window);
-		glfwSwapInterval(1);
-
 		if (glfwGetWindowAttrib(mp_window, GLFW_TITLEBAR))
 		{
 			glfwSetWindowAttrib(mp_window, GLFW_TITLEBAR_AREA, (m_props.costum_titlebar_area * 100.f));
 		}
+
+		if (m_props.maximized)
+			glfwSetWindowPos(mp_window, 0, 0);
 
 		if (m_props.center_window && !m_props.fullscreen) 
 		{
@@ -119,6 +145,9 @@ namespace IMAF
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;       // Enable Keyboard Controls
 		//io.ConfigViewportsNoAutoMerge = true;
 		//io.ConfigViewportsNoTaskBarIcon = true;
+
+		if (m_props.ini_file)
+			io.IniFilename = m_props.ini_file;
 
 		if (!m_props.gen_ini)
 			io.IniFilename = NULL;
@@ -155,6 +184,8 @@ namespace IMAF
 		io.Fonts->AddFontFromMemoryTTF((void*)& g_FontBold[0], sizeof(g_FontBold), m_props.font_size, &fontConfig);
 		io.Fonts->AddFontFromMemoryTTF((void*)&g_FontExtrabold[0], sizeof(g_FontExtrabold), m_props.font_size, &fontConfig);
 
+		io.FontDefault = io.Fonts->Fonts[0];
+
 		return false;
 	}
 
@@ -177,6 +208,13 @@ namespace IMAF
 	{
 		if (mp_setup_func)
 			mp_setup_func();
+
+		if (mp_uiscale_callback)
+		{
+			float xscale, yscale;
+			glfwGetWindowContentScale(mp_window, &xscale, &yscale);
+			mp_uiscale_callback(xscale, yscale);
+		}
 
 		m_exited = false;
 		while (!glfwWindowShouldClose(mp_window) && !m_should_exit)
@@ -328,6 +366,15 @@ namespace IMAF
 		ImGui::PopStyleColor();
 	}
 
+	IMAF::Application::ScreenSize Application::GetApplicationScreenSize()
+	{
+		MONITORINFOEXW monitor_info;
+		monitor_info.cbSize = sizeof(MONITORINFOEXW);
+		HMONITOR monitor = MonitorFromWindow(glfwGetWin32Window(mp_window), MONITOR_DEFAULTTONEAREST);
+		GetMonitorInfoW(monitor, &monitor_info);
+		return { monitor_info.rcMonitor.right - monitor_info.rcMonitor.left, monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top };
+	}
+
 	void Application::RemovePanel(uint64_t id)
 	{
 		m_panels_mutex.lock();
@@ -340,7 +387,37 @@ namespace IMAF
 		mp_def_docking = setup_func;
     }
 
-    ImGuiID Application::GetDockspaceId() const
+	void Application::AddScaleCallback(void(*callback)(float, float))
+	{
+		mp_uiscale_callback = callback;
+	}
+
+	void Application::__CallScaleCallback(float x, float y)
+	{
+		mp_uiscale_callback(x, y);
+	}
+
+	void Application::ReCaclWindowSize()
+	{
+		ScreenSize new_size = GetApplicationScreenSize();
+
+		if (new_size != m_screen_size)
+		{
+			int width = 0, height = 0;
+			glfwGetWindowSize(mp_window, &width, &height);
+			
+			float x_scale = (float)new_size.x / (float)m_screen_size.x;
+			float y_scale = (float)new_size.y / (float)m_screen_size.y;
+
+			glfwSetWindowSize(mp_window, std::lround((float)width * x_scale), std::lround((float)height * y_scale));
+
+			m_screen_size = new_size;
+
+
+		}
+	}
+
+	ImGuiID Application::GetDockspaceId() const
 	{
 		return m_dockspace_id == 0 ? 0 : m_dockspace_id;
 	}
