@@ -13,13 +13,19 @@ class ExampleLayer : public IMAF::Panel
 public:
 	void UiRender() override
 	{
-		ImGui::Begin("Hello");
+		IMAF::Begin("Hello");
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-		ImGui::End();
+		IMAF::End();
 
-		ImGui::Begin("Something");
-		ImGui::Button("Click me", { Pixs(200.f,100.f) });
-		ImGui::End();
+		IMAF::Begin("Something");
+		
+		ImGui::PushFont(IMAF::GetFont(FONT_BOLD_NORMAL));
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,IMAF::Val(20,20));
+		ImGui::Button("Click me", { IMAF::Val(200.f,100.f) });
+		ImGui::Button("Click me", { IMAF::Val(200.f,100.f) });
+		ImGui::PopFont();
+		ImGui::PopStyleVar();
+		IMAF::End();
 
 		ImGui::ShowDemoWindow();
 	}
@@ -49,18 +55,8 @@ int WINAPI wWinMain(HINSTANCE hInstance,HINSTANCE prevhInstance,PWSTR pCmdLine,i
 	
 	IMAF::Application* app = new IMAF::Application(props);
 
-	app->AddScaleCallback(IMAF::Scale::ScaleCallback);
-
 	std::shared_ptr<ExampleLayer> ptr = std::make_shared<ExampleLayer>();
 	app->AddPanel(ptr);
-	
-	app->SetUp([]() 
-		{
-			ImFontConfig fontConfig;
-			fontConfig.FontDataOwnedByAtlas = false;
-			ImGui::GetIO().Fonts->AddFontFromMemoryTTF((void*)&g_FontRegular[0], sizeof(g_FontRegular), 27, &fontConfig);
-		}
-	);
 
 	app->AddDefDockingSetup(dock_setup);
 
