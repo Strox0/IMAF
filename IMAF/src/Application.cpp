@@ -1,7 +1,10 @@
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include "IMAF/Application.h"
 
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+
+#include "imgui_internal.h"
 
 #include "GLES3/gl3.h"
 #include "GLFW/glfw3.h"
@@ -13,10 +16,10 @@
 
 #define ValidTitlebarArea(area) (area >= 0.f && area <= 1.f)
 #include <string>
-static void glfw_error_callback(int error, const char* description)
-{
-	
-}
+
+IMAF::Application* g_app = nullptr;
+
+static void glfw_error_callback(int error, const char* description) {}
 
 void __DPICallBack(GLFWwindow* window, float xscale, float yscale)
 {
@@ -24,12 +27,6 @@ void __DPICallBack(GLFWwindow* window, float xscale, float yscale)
 	app->__CallScaleCallback(xscale, yscale);
 
 	app->ReCaclWindowSize();
-}
-
-void IMAF::FrameBufferResizeCallback(GLFWwindow* window, int width, int height)
-{
-	IMAF::Application* app = (IMAF::Application*)glfwGetWindowUserPointer(window);
-	app->EndRender();
 }
 
 namespace IMAF 
@@ -42,6 +39,14 @@ namespace IMAF
 			MessageBoxA(NULL, "Application Initalization Failed", "Fatal Error", MB_OK | MB_ICONERROR);
 			Shutdown();
 			ExitProcess(1);
+		}
+
+		g_app = this;
+
+		if (m_props.dpi_aware)
+		{
+			Scale::InitScaler();
+			mp_scaler = Scale::GetScaler();
 		}
 	}
 
@@ -95,13 +100,11 @@ namespace IMAF
 		if (mp_window == nullptr)
 			return true;
 
-		m_screen_size = GetApplicationScreenSize();
+		m_screen_size = GetMainApplicationScreenSize();
 
 		glfwSetWindowUserPointer(mp_window, this);
 		glfwMakeContextCurrent(mp_window);
 		glfwSwapInterval(1);
-
-		glfwSetFramebufferSizeCallback(mp_window, IMAF::FrameBufferResizeCallback);
 
 		if (m_props.dpi_aware)
 		{
@@ -174,17 +177,30 @@ namespace IMAF
 		ImGui_ImplGlfw_InitForOpenGL(mp_window, true);
 		ImGui_ImplOpenGL3_Init("#version 460");
 
-		//Adding default font
+		//Load fonts
 		ImFontConfig fontConfig;
 		fontConfig.FontDataOwnedByAtlas = false;
-		io.Fonts->AddFontFromMemoryTTF((void*)&g_FontRegular[0], sizeof(g_FontRegular), m_props.font_size, &fontConfig);
-		io.Fonts->AddFontFromMemoryTTF((void*)&g_FontLight[0], sizeof(g_FontLight), m_props.font_size, &fontConfig);
-		io.Fonts->AddFontFromMemoryTTF((void*)&g_FontMedium[0], sizeof(g_FontMedium), m_props.font_size, &fontConfig);
-		io.Fonts->AddFontFromMemoryTTF((void*)&g_FontSemibold[0], sizeof(g_FontSemibold), m_props.font_size, &fontConfig);
-		io.Fonts->AddFontFromMemoryTTF((void*)& g_FontBold[0], sizeof(g_FontBold), m_props.font_size, &fontConfig);
-		io.Fonts->AddFontFromMemoryTTF((void*)&g_FontExtrabold[0], sizeof(g_FontExtrabold), m_props.font_size, &fontConfig);
 
-		io.FontDefault = io.Fonts->Fonts[0];
+		ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
+
+		for (const auto& i : platform_io.Monitors)
+		{
+			std::vector<ImFont*> fonts;
+			float size = std::floorf((float)m_props.font_size * i.DpiScale);
+			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontRegular[0],	sizeof(g_FontRegular),	size, &fontConfig));
+			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontLight[0],		sizeof(g_FontLight),	size, &fontConfig));
+			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontMedium[0],		sizeof(g_FontMedium),	size, &fontConfig));
+			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontSemibold[0],	sizeof(g_FontSemibold), size, &fontConfig));
+			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontBold[0],		sizeof(g_FontBold),		size, &fontConfig));
+			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontExtrabold[0],	sizeof(g_FontExtrabold),size, &fontConfig));
+
+			m_fonts[i.DpiScale] = fonts;
+		}
+
+		float xscale, yscale;
+		glfwGetWindowContentScale(mp_window, &xscale, &yscale);
+		io.FontDefault = m_fonts[xscale][0];
+		style.ScaleAllSizes(xscale);
 
 		return false;
 	}
@@ -209,11 +225,11 @@ namespace IMAF
 		if (mp_setup_func)
 			mp_setup_func();
 
-		if (mp_uiscale_callback)
+		if (mp_scaler)
 		{
 			float xscale, yscale;
 			glfwGetWindowContentScale(mp_window, &xscale, &yscale);
-			mp_uiscale_callback(xscale, yscale);
+			mp_scaler->SetMainWindowScale((xscale < yscale ? xscale : yscale));
 		}
 
 		m_exited = false;
@@ -239,7 +255,7 @@ namespace IMAF
 				{
 					mp_def_docking(m_dockspace_id,first_run);
 				}
-				ImGui::End();
+				IMAF::End();
 			}
 			EndRender();
 		}
@@ -253,6 +269,10 @@ namespace IMAF
 		{
 			Sleep(5);
 		}
+
+		if (mp_scaler)
+			mp_scaler->Shutdown();
+
 		// Cleanup
 		if (ImGui::GetIO().BackendRendererUserData != nullptr)
 			ImGui_ImplOpenGL3_Shutdown();
@@ -355,7 +375,8 @@ namespace IMAF
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0.f,0.f });
 		
 		ImGui::PushStyleColor(ImGuiCol_::ImGuiCol_WindowBg, ImVec4(0.09f, 0.09f, 0.10f, 1.00f));
-		ImGui::Begin("DockingWindow", nullptr, flags);
+
+		IMAF::Begin("DockingWindow", nullptr, flags);
 
 		if (m_dockspace_id == 0)
 			m_dockspace_id = ImGui::GetID("MyDockspace");
@@ -366,7 +387,7 @@ namespace IMAF
 		ImGui::PopStyleColor();
 	}
 
-	IMAF::Application::ScreenSize Application::GetApplicationScreenSize()
+	IMAF::Application::ScreenSize Application::GetMainApplicationScreenSize()
 	{
 		MONITORINFOEXW monitor_info;
 		monitor_info.cbSize = sizeof(MONITORINFOEXW);
@@ -387,19 +408,14 @@ namespace IMAF
 		mp_def_docking = setup_func;
     }
 
-	void Application::AddScaleCallback(void(*callback)(float, float))
-	{
-		mp_uiscale_callback = callback;
-	}
-
 	void Application::__CallScaleCallback(float x, float y)
 	{
-		mp_uiscale_callback(x, y);
+		mp_scaler->SetMainWindowScale((x < y ? x : y));
 	}
 
 	void Application::ReCaclWindowSize()
 	{
-		ScreenSize new_size = GetApplicationScreenSize();
+		ScreenSize new_size = GetMainApplicationScreenSize();
 
 		if (new_size != m_screen_size)
 		{
@@ -412,14 +428,47 @@ namespace IMAF
 			glfwSetWindowSize(mp_window, std::lround((float)width * x_scale), std::lround((float)height * y_scale));
 
 			m_screen_size = new_size;
-
-
 		}
 	}
 
 	ImGuiID Application::GetDockspaceId() const
 	{
 		return m_dockspace_id == 0 ? 0 : m_dockspace_id;
+	}
+
+	bool Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
+	{
+		if (g_app->mp_scaler == nullptr)
+			return ImGui::Begin(name, p_open, flags);
+
+		g_app->mp_scaler->SetCurrentID(name);
+
+		ImGui::PushFont(g_app->m_fonts.at(g_app->mp_scaler->GetWindowScale(name))[FONT_NORMAL]);
+
+		return ImGui::Begin(name, p_open, flags);
+	}
+
+	ImFont* GetFont(int type)
+	{
+		if (g_app->mp_scaler == nullptr)
+			return g_app->m_fonts.begin()->second[type];
+
+		return g_app->m_fonts.at(g_app->mp_scaler->GetCurrentScale())[type];
+	}
+
+	void End()
+	{
+		if (g_app->mp_scaler == nullptr)
+		{
+			ImGui::End();
+			return;
+		}
+
+		ImGui::PopFont();
+
+		g_app->mp_scaler->SetCurrentID(std::string());
+
+		ImGui::End();
 	}
 
 	void Application::SetPrurpleDarkColorTheme()

@@ -1,34 +1,56 @@
 #pragma once
 
-#define PixX(x) IMAF::Scale::Pix(x,true)
-#define PixY(y) IMAF::Scale::Pix(y,false)
-#define Pixs(x,y) PixX(x),PixY(y)
+#include "imgui_internal.h"
+#include <unordered_map>
+#include <string>
+#include <atomic>
 
 namespace IMAF 
 {
-	namespace Scale 
+	namespace Scale
 	{
-		//struct ScreenSize
-		//{
-		//	int x;
-		//	int y;
+		int Val(int x);
+		ImVec2 Val(int x,int y);
+		float Val(float x);
+		ImVec2 Val(float x,float y);
 
-		//	ScreenSize(int x, int y) : x(x), y(y) {};
-		//	ScreenSize() : x(0), y(0) {};
+		void InitScaler();
 
-		//	float Ratio(const ScreenSize& other)
-		//	{
-		//		return ((float)other.x / (float)x) < ((float)other.y / (float)y) ? ((float)other.x / (float)x) : ((float)other.y / (float)y);
-		//	}
-		//};
+		class Scaler
+		{
+		public:
+			Scaler();
+			~Scaler();
 
-		//The base_size is the screen size which the application will be developed for. If the screen size is different, the values will scale accordingly.
-		//void Init(HWND application_handle, bool perfect_scale = false, ScreenSize base_size = { 1920,1080 });
+			float Val(float x) const;
+			int Val(int x) const;
 
-		int Pix(int x, bool x_plane = true);
-		float Pix(float x, bool x_plane = true);
+			void SetMainWindowScale(float scale);
 
-		//This function should be passed to 'AddScaleCallback'
-		void ScaleCallback(float xscale,float yscale);
+			void Shutdown() { shutdown = true; }
+
+			void SetCurrentID(std::string id);
+
+			float GetWindowScale(std::string id) const;
+			float GetCurrentScale() const;
+
+		private:
+
+			void Setup();
+			friend void NewWindowCallback(ImGuiViewport* viewport);
+
+			void UpdateWindowScale(std::string id);
+
+		private:
+			std::atomic<float> m_main_window_scale = 1.0f;
+			std::unordered_map<std::string, float> m_windows;
+			std::unordered_map<short, float> m_monitors;
+			bool shutdown = false;
+			std::string m_curr_id;
+		};
+
+		Scaler* GetScaler();
 	}
+
+	using Scale::Val;
 }

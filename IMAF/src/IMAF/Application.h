@@ -8,6 +8,7 @@
 #include <Windows.h>
 
 #include "Panel.h"
+#include "Scale.h"
 
 #define RGB2_IMVEC4(r,g,b) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, 1.0f )
 #define RGBA2_IMVEC4(r,g,b,a) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, a )
@@ -25,6 +26,15 @@ struct GLFWwindow;
 
 namespace IMAF 
 {
+	void End();
+	bool Begin(const char* name, bool* p_open = NULL, ImGuiWindowFlags flags = 0);
+
+	//Use this function if DPI awerness is enabled
+	//     ImGui::PushFont(GetFont(FONT_TYPE));
+	//Returns the font scaled to the current window's dpi
+	//type is the font type, see the FONT_ defines
+	ImFont* GetFont(int type);
+
 	struct AppProperties
 	{
 		const char* name;
@@ -79,12 +89,21 @@ namespace IMAF
 		void AddDefDockingSetup(std::function<void(ImGuiID,bool&)> setup_func);
 		ImGuiID GetDockspaceId() const;
 
-		void AddScaleCallback(void(*callback)(float, float));
 		void __CallScaleCallback(float x, float y);
 
 		void ReCaclWindowSize();
 
+		friend void End();
+		friend bool Begin(const char* name, bool* p_open, ImGuiWindowFlags flags);
+
+		//Use this function if DPI awerness is enabled
+		// ImGui::PushFont(GetFont(FONT_TYPE));
+		//Returns the font scaled to the current window's dpi
+		//type is the font type, see the FONT_ defines
+		friend ImFont* GetFont(int type);
+
 	private:
+
 		struct ScreenSize
 		{
 			int x;
@@ -99,8 +118,6 @@ namespace IMAF
 			}
 		};
 
-		friend void FrameBufferResizeCallback(GLFWwindow* window, int width, int height);
-
 		bool Init();
 		void Shutdown();
 
@@ -109,7 +126,7 @@ namespace IMAF
 
 		void BeginRenderDockspace();
 
-		IMAF::Application::ScreenSize GetApplicationScreenSize();
+		IMAF::Application::ScreenSize GetMainApplicationScreenSize();
 
 	private:
 		GLFWwindow* mp_window = nullptr;
@@ -124,9 +141,12 @@ namespace IMAF
 
 		std::function<void()> mp_setup_func;
 		std::function<void(ImGuiID,bool&)> mp_def_docking;
-		std::function<void(float,float)> mp_uiscale_callback;
+		
+		Scale::Scaler* mp_scaler = nullptr;
 
 		ScreenSize m_screen_size;
+
+		std::unordered_map<float,std::vector<ImFont*>> m_fonts;
 	};
 
 }
