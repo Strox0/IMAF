@@ -177,31 +177,17 @@ void IMAF::Scale::Scaler::Setup()
 	//}
 }
 
-void IMAF::Scale::Scaler::UpdateWindowScale(std::string id)
+void IMAF::Scale::Scaler::UpdateWindowScales()
 {
-	if (id.empty())
-		return;
-
 	ImGuiContext* ctx = ImGui::GetCurrentContext();
 
-	ImGuiWindow* window = nullptr;
-
-	for (int i = 0; i < ctx->Windows.Size; i++)
+	for (const auto& window : ctx->Windows)
 	{
-		if (ctx->Windows[i]->Name == id)
-		{
-			window = ctx->Windows[i];
-			break;
-		}
+		if (!window->ViewportOwned)
+			m_windows[std::string(window->Name)] = m_main_window_scale;
+		else
+			m_windows[std::string(window->Name)] = m_monitors[window->Viewport->PlatformMonitor];
 	}
-
-	if (window == nullptr)
-		return;
-
-	if (!window->ViewportOwned)
-		m_windows[std::string(window->Name)] = m_main_window_scale;
-	else
-		m_windows[std::string(window->Name)] = m_monitors[window->Viewport->PlatformMonitor];
 }
 
 //BOOL monitorenumproc(HMONITOR unnamedParam1, HDC unnamedParam2, LPRECT unnamedParam3, LPARAM unnamedParam4)

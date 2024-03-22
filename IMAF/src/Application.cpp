@@ -257,6 +257,10 @@ namespace IMAF
 				}
 				IMAF::End();
 			}
+
+			if (mp_scaler)
+				mp_scaler->UpdateWindowScales();
+
 			EndRender();
 		}
 		m_exited = true;

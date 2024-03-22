@@ -34,12 +34,12 @@ namespace IMAF
 			float GetWindowScale(std::string id) const;
 			float GetCurrentScale() const;
 
+			void UpdateWindowScales();
+
 		private:
 
 			void Setup();
 			friend void NewWindowCallback(ImGuiViewport* viewport);
-
-			void UpdateWindowScale(std::string id);
 
 		private:
 			std::atomic<float> m_main_window_scale = 1.0f;
