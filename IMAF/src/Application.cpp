@@ -429,6 +429,8 @@ namespace IMAF
 			float x_scale = (float)new_size.x / (float)m_screen_size.x;
 			float y_scale = (float)new_size.y / (float)m_screen_size.y;
 
+			ImGui::GetStyle().ScaleAllSizes(x_scale);
+
 			glfwSetWindowSize(mp_window, std::lround((float)width * x_scale), std::lround((float)height * y_scale));
 
 			m_screen_size = new_size;
