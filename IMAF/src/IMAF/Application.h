@@ -26,6 +26,33 @@ struct GLFWwindow;
 
 namespace IMAF 
 {
+	struct ButtonSpec
+	{
+		int x;
+		int width;
+	};
+
+	enum TopBorder
+	{
+		None,
+		Thin,
+		Color,
+		Default = None
+	};
+
+	struct Titlebar_Properties
+	{
+		int height = 0;
+
+		int top_border = TopBorder::Default;
+
+		ButtonSpec close_button;
+		ButtonSpec minimize_button;
+		ButtonSpec maximize_button;
+
+		void (*titlebar_draw_f)(Titlebar_Properties*) = nullptr;
+	};
+
 	void End();
 	bool Begin(const char* name, bool* p_open = NULL, ImGuiWindowFlags flags = 0);
 
@@ -34,6 +61,8 @@ namespace IMAF
 	//Returns the font scaled to the current window's dpi
 	//type is the font type, see the FONT_ defines
 	ImFont* GetFont(int type);
+
+	void DefCustomTitlebarDraw(Titlebar_Properties* props);
 
 	struct AppProperties
 	{
@@ -54,12 +83,10 @@ namespace IMAF
 		bool center_window = true;
 		bool gen_ini = false;
 
-		//Reletive area startig from the top of the application
-		//1.0 = whole app is titlebar
-		//0.1 = 10% of the app is titlebar
-		float costum_titlebar_area = 0.f;
-		//DOESNT WORK (WIP)
-		bool costum_titlebar = false;
+		//WIP
+		Titlebar_Properties custom_titlebar_props;
+		bool custom_titlebar = false;
+
 		AppProperties() : name("My Application") {};
 	};
 
@@ -101,20 +128,22 @@ namespace IMAF
 		//Returns the font scaled to the current window's dpi
 		//type is the font type, see the FONT_ defines
 		friend ImFont* GetFont(int type);
+		
+		friend void DefCustomTitlebarDraw(Titlebar_Properties* props);
 
 	private:
 
-		struct ScreenSize
+		struct SizeRect
 		{
-			int x;
-			int y;
+			int width;
+			int height;
 
-			ScreenSize(int x, int y) : x(x), y(y) {};
-			ScreenSize() : x(0), y(0) {};
+			SizeRect(int width, int height) : width(width), height(height) {};
+			SizeRect() : width(0), height(0) {};
 
-			bool operator!=(const ScreenSize& other)
+			bool operator!=(const SizeRect& other)
 			{
-				return x != other.x || y != other.y;
+				return width != other.width || height != other.height;
 			}
 		};
 
@@ -126,7 +155,9 @@ namespace IMAF
 
 		void BeginRenderDockspace();
 
-		IMAF::Application::ScreenSize GetMainApplicationScreenSize();
+		IMAF::Application::SizeRect GetMainApplicationScreenSize();
+
+		void _DEBUG_DrawCustomTitlebarButtons();
 
 	private:
 		GLFWwindow* mp_window = nullptr;
@@ -144,7 +175,8 @@ namespace IMAF
 		
 		Scale::Scaler* mp_scaler = nullptr;
 
-		ScreenSize m_screen_size;
+		SizeRect m_screen_size;
+		float m_dpi_scale = 1.0f;
 
 		std::unordered_map<float,std::vector<ImFont*>> m_fonts;
 	};

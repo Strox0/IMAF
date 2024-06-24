@@ -52,7 +52,18 @@ int WINAPI wWinMain(HINSTANCE hInstance,HINSTANCE prevhInstance,PWSTR pCmdLine,i
 	props.resizeable = true;
 	props.imgui_docking = true;
 	props.gen_ini = false;
+	props.dpi_aware = true;
+	props.width = 1280;
+	props.height = 720;
 	
+	props.custom_titlebar = true;
+
+	props.custom_titlebar_props.height = 50;
+	props.custom_titlebar_props.minimize_button = { 1125,50 };
+	props.custom_titlebar_props.maximize_button = { 1175,50 };
+	props.custom_titlebar_props.close_button = { 1225,50 };
+	props.custom_titlebar_props.top_border = IMAF::TopBorder::Thin;
+
 	IMAF::Application* app = new IMAF::Application(props);
 
 	std::shared_ptr<ExampleLayer> ptr = std::make_shared<ExampleLayer>();
