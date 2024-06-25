@@ -40,6 +40,8 @@ namespace IMAF
 		Default = None
 	};
 
+	struct AppProperties;
+
 	struct Titlebar_Properties
 	{
 		int height = 0;
@@ -50,7 +52,8 @@ namespace IMAF
 		ButtonSpec minimize_button;
 		ButtonSpec maximize_button;
 
-		void (*titlebar_draw_f)(Titlebar_Properties*) = nullptr;
+		void (*titlebar_draw_f)(const AppProperties*, GLFWwindow*) = nullptr;
+		void (*titlebar_scaling_f)(Titlebar_Properties*, float, GLFWwindow*) = nullptr;
 	};
 
 	void End();
@@ -62,7 +65,8 @@ namespace IMAF
 	//type is the font type, see the FONT_ defines
 	ImFont* GetFont(int type);
 
-	void DefCustomTitlebarDraw(Titlebar_Properties* props);
+	void DefCustomTitlebarDraw(const AppProperties* app_props,GLFWwindow* window);
+	void DefCustomTitlebarScaling(Titlebar_Properties* out_props, float scale, GLFWwindow* window);
 
 	struct AppProperties
 	{
@@ -128,8 +132,6 @@ namespace IMAF
 		//Returns the font scaled to the current window's dpi
 		//type is the font type, see the FONT_ defines
 		friend ImFont* GetFont(int type);
-		
-		friend void DefCustomTitlebarDraw(Titlebar_Properties* props);
 
 	private:
 
@@ -156,8 +158,6 @@ namespace IMAF
 		void BeginRenderDockspace();
 
 		IMAF::Application::SizeRect GetMainApplicationScreenSize();
-
-		void _DEBUG_DrawCustomTitlebarButtons();
 
 	private:
 		GLFWwindow* mp_window = nullptr;

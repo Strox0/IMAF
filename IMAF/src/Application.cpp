@@ -146,6 +146,9 @@ namespace IMAF
 
 			if (m_props.custom_titlebar_props.titlebar_draw_f == nullptr)
 				m_props.custom_titlebar_props.titlebar_draw_f = DefCustomTitlebarDraw;
+
+			if (m_props.custom_titlebar_props.titlebar_scaling_f == nullptr)
+				m_props.custom_titlebar_props.titlebar_scaling_f = DefCustomTitlebarScaling;
 		}
 
 		if (m_props.dpi_aware)
@@ -279,7 +282,7 @@ namespace IMAF
 			BeginRender();
 
 			if (m_props.custom_titlebar)
-				m_props.custom_titlebar_props.titlebar_draw_f(&m_props.custom_titlebar_props);
+				m_props.custom_titlebar_props.titlebar_draw_f(&m_props,mp_window);
 
 			if (m_props.imgui_docking)
 				BeginRenderDockspace();
@@ -490,39 +493,8 @@ namespace IMAF
 
 			if (m_props.custom_titlebar)
 			{
-				const GLFWcustomtitlebar* pt = glfwGetCustomTitlebarProperties(mp_window);
-
-				m_props.custom_titlebar_props.close_button.x = pt->closeButton.left;
-				m_props.custom_titlebar_props.minimize_button.x = pt->minimizeButton.left;
-				m_props.custom_titlebar_props.maximize_button.x = pt->maximizeButton.left;
-
-				//Scale button width and titlebar height
-				m_props.custom_titlebar_props.height *= style_scale;
-				m_props.custom_titlebar_props.close_button.width *= style_scale;
-				m_props.custom_titlebar_props.minimize_button.width *= style_scale;
-				m_props.custom_titlebar_props.maximize_button.width *= style_scale;
-
-				//Calculate new button rects
-				GLFWRect close_r{ 0 }, min_r{ 0 }, max_r{ 0 };
-
-				close_r.left = m_props.custom_titlebar_props.close_button.x;
-				max_r.left = m_props.custom_titlebar_props.maximize_button.x;
-				min_r.left = m_props.custom_titlebar_props.minimize_button.x;
-
-				close_r.right = close_r.left + m_props.custom_titlebar_props.close_button.width;
-				max_r.right = max_r.left + m_props.custom_titlebar_props.maximize_button.width;
-				min_r.right = min_r.left + m_props.custom_titlebar_props.minimize_button.width;
-
-				min_r.bottom = m_props.custom_titlebar_props.height;
-				max_r.bottom = m_props.custom_titlebar_props.height;
-				close_r.bottom = m_props.custom_titlebar_props.height;
-
-				glfwSetCustomTitlebarHeight(mp_window, m_props.custom_titlebar_props.height);
-				glfwSetCustomTitlebarButton(mp_window, GLFW_CT_CLOSE_BUTTON, &close_r);
-				glfwSetCustomTitlebarButton(mp_window, GLFW_CT_MINIMIZE_BUTTON, &min_r);
-				glfwSetCustomTitlebarButton(mp_window, GLFW_CT_MAXIMIZE_BUTTON, &max_r);
-
-				glfwSetCustomTitleBar(mp_window, true);
+				if (m_props.custom_titlebar_props.titlebar_scaling_f)
+					m_props.custom_titlebar_props.titlebar_scaling_f(&m_props.custom_titlebar_props, style_scale, mp_window);
 			}
 
 			glfwSetWindowSize(mp_window, std::lround((float)new_screen_size.width * x_ratio), std::lround((float)new_screen_size.height * y_ratio));
@@ -536,25 +508,29 @@ namespace IMAF
 		return m_dockspace_id == 0 ? 0 : m_dockspace_id;
 	}
 
-	void DefCustomTitlebarDraw(Titlebar_Properties* props)
+	void DefCustomTitlebarDraw(const AppProperties* app_props, GLFWwindow* window)
 	{
 		int w, h;
-		glfwGetWindowSize(g_app->mp_window, &w, &h);
+		glfwGetWindowSize(window, &w, &h);
 		int x, y;
-		glfwGetWindowPos(g_app->mp_window, &x, &y);
+		glfwGetWindowPos(window, &x, &y);
+
+		const Titlebar_Properties* props = &app_props->custom_titlebar_props;
 
 		ImGui::SetNextWindowSize({ (float)w,(float)props->height });
 		ImGui::SetNextWindowPos({ (float)x,(float)y });
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0,0 });
-		ImGui::PushStyleColor(ImGuiCol_WindowBg, RGB2_IMVEC4(17, 17, 17));
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, RGB2_IMVEC4(37, 37, 37));
 		IMAF::Begin("##CustomTitlebar", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoDocking);
-		const GLFWcustomtitlebar* p = glfwGetCustomTitlebarProperties(g_app->mp_window);
+		const GLFWcustomtitlebar* p = glfwGetCustomTitlebarProperties(window);
 
-		ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(17, 17, 17, 0));
+		ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(37, 37, 37, 0));
 		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 35);
 
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(175, 55, 55, 255));
 		ImGui::SetCursorPos({ (float)p->closeButton.left,1 });
 		ImGui::Button("X", { (float)props->close_button.width,(float)props->height-2 });
+		ImGui::PopStyleColor();
 
 		ImGui::SetCursorPos({ (float)p->minimizeButton.left,1 });
 		ImGui::Button("_", { (float)props->minimize_button.width,(float)props->height-2 });
@@ -563,11 +539,11 @@ namespace IMAF
 		ImGui::Button("O", { (float)props->maximize_button.width,(float)props->height-2 });
 
 		ImVec2 text_pos;
-		text_pos.x = 20;
-		text_pos.y = props->height / 2 - ImGui::CalcTextSize(g_app->m_props.name).y / 2;
+		text_pos.x = w / 2 - ImGui::CalcTextSize(app_props->name).x / 2;
+		text_pos.y = props->height / 2 - ImGui::CalcTextSize(app_props->name).y / 2;
 
 		ImGui::SetCursorPos(text_pos);
-		ImGui::Text(g_app->m_props.name);
+		ImGui::Text(app_props->name);
 
 		ImDrawList* DrawList = ImGui::GetWindowDrawList();
 		DrawList->AddLine({ (float)x,(float)(props->height - 1 + y) }, { (float)(w+x),(float)(props->height - 1 + y) }, IM_COL32(73,73,73,255), 3.0f);
@@ -578,6 +554,43 @@ namespace IMAF
 		IMAF::End();
 		ImGui::PopStyleVar();
 		ImGui::PopStyleColor();
+	}
+
+	void DefCustomTitlebarScaling(Titlebar_Properties* out_props, float scale, GLFWwindow* window)
+	{
+		//Get current button positions
+		const GLFWcustomtitlebar* pt = glfwGetCustomTitlebarProperties(window);
+
+		out_props->close_button.x = pt->closeButton.left;
+		out_props->minimize_button.x = pt->minimizeButton.left;
+		out_props->maximize_button.x = pt->maximizeButton.left;
+
+		//Scale button width and titlebar height
+		out_props->height *= scale;
+		out_props->close_button.width *= scale;
+		out_props->minimize_button.width *= scale;
+		out_props->maximize_button.width *= scale;
+
+		//Calculate new button rects
+		GLFWRect close_r{ 0 }, min_r{ 0 }, max_r{ 0 };
+
+		close_r.left = out_props->close_button.x;
+		max_r.left = out_props->maximize_button.x;
+		min_r.left = out_props->minimize_button.x;
+
+		close_r.right = close_r.left + out_props->close_button.width;
+		max_r.right = max_r.left + out_props->maximize_button.width;
+		min_r.right = min_r.left + out_props->minimize_button.width;
+
+		min_r.bottom = out_props->height;
+		max_r.bottom = out_props->height;
+		close_r.bottom = out_props->height;
+
+		//Update button rects and titlebar height
+		glfwSetCustomTitlebarHeight(window, out_props->height);
+		glfwSetCustomTitlebarButton(window, GLFW_CT_CLOSE_BUTTON, &close_r);
+		glfwSetCustomTitlebarButton(window, GLFW_CT_MINIMIZE_BUTTON, &min_r);
+		glfwSetCustomTitlebarButton(window, GLFW_CT_MAXIMIZE_BUTTON, &max_r);
 	}
 
 	bool Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
