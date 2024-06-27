@@ -49,12 +49,15 @@ void IMAF::Scale::InitScaler()
 
 void IMAF::Scale::NewWindowCallback(ImGuiViewport* viewport)
 {
+	assert(viewport != nullptr);
 	ImGuiContext* ctx = ImGui::GetCurrentContext();
 	
 	ImGuiWindow* window = nullptr;
 
 	for (int i = 0; i < ctx->Windows.Size; i++)
 	{
+		if (ctx->Windows[i]->Viewport == nullptr)
+			continue;
 		if (ctx->Windows[i]->Viewport->ID == viewport->ID)
 		{
 			window = ctx->Windows[i];
