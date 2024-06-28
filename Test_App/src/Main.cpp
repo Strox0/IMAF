@@ -64,6 +64,8 @@ int WINAPI wWinMain(HINSTANCE hInstance,HINSTANCE prevhInstance,PWSTR pCmdLine,i
 	props.custom_titlebar_props.close_button.SetRect(1240,5, 40, 40);
 	props.custom_titlebar_props.top_border = IMAF::TopBorder::Thin;
 
+	//props.custom_titlebar_props.exclusions = new IMAF::ExclusionRect(0,0,50,50,new IMAF::ExclusionRect(100,0,50,50));
+
 	IMAF::Application* app = new IMAF::Application(props);
 
 	std::shared_ptr<ExampleLayer> ptr = std::make_shared<ExampleLayer>();

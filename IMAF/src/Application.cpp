@@ -125,7 +125,8 @@ namespace IMAF
 		{
 			UpdateGLFWTitlebarRects();
 
-			glfwCustomTitlebarAddExclusion(mp_window, (GLFWChainRect*)m_props.custom_titlebar_props.exclusions);
+			if (m_props.custom_titlebar_props.exclusions)
+				glfwCustomTitlebarAddExclusion(mp_window, (GLFWChainRect*)m_props.custom_titlebar_props.exclusions);
 
 			glfwSetCustomTitleBar(mp_window, true);
 
