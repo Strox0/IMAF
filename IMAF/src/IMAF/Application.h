@@ -28,8 +28,26 @@ namespace IMAF
 {
 	struct ButtonSpec
 	{
-		int x;
-		int width;
+		void SetRect(int x, int height)
+		{
+			width = height;
+			this->x = x;
+			y = 0;
+			height = -1;
+		}
+
+		void SetRect(int x, int y, int width, int height)
+		{
+			this->x = x;
+			this->width = width;
+			this->height = height;
+			this->y = y;
+		}
+
+		int x = 0;
+		int y = 0;
+		int width = 50;
+		int height = -1;
 	};
 
 	enum TopBorder
@@ -156,6 +174,8 @@ namespace IMAF
 		void EndRender();
 
 		void BeginRenderDockspace();
+
+		void UpdateGLFWTitlebarRects();
 
 		IMAF::Application::SizeRect GetMainApplicationScreenSize();
 

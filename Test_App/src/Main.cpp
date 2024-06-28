@@ -59,9 +59,9 @@ int WINAPI wWinMain(HINSTANCE hInstance,HINSTANCE prevhInstance,PWSTR pCmdLine,i
 	props.custom_titlebar = true;
 
 	props.custom_titlebar_props.height = 50;
-	props.custom_titlebar_props.minimize_button = { 1125,50 };
-	props.custom_titlebar_props.maximize_button = { 1175,50 };
-	props.custom_titlebar_props.close_button = { 1225,50 };
+	props.custom_titlebar_props.minimize_button.SetRect(1160,5,40,40);
+	props.custom_titlebar_props.maximize_button.SetRect(1200,5, 40, 40);
+	props.custom_titlebar_props.close_button.SetRect(1240,5, 40, 40);
 	props.custom_titlebar_props.top_border = IMAF::TopBorder::Thin;
 
 	IMAF::Application* app = new IMAF::Application(props);
