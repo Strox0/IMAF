@@ -125,6 +125,8 @@ namespace IMAF
 		{
 			UpdateGLFWTitlebarRects();
 
+			glfwCustomTitlebarAddExclusion(mp_window, (GLFWChainRect*)m_props.custom_titlebar_props.exclusions);
+
 			glfwSetCustomTitleBar(mp_window, true);
 
 			if (m_props.custom_titlebar_props.titlebar_draw_f == nullptr)
@@ -613,6 +615,15 @@ namespace IMAF
 
 		ImDrawList* DrawList = ImGui::GetWindowDrawList();
 		DrawList->AddLine({ (float)x,(float)(props->height - 1 + y) }, { (float)(w + x),(float)(props->height - 1 + y) }, IM_COL32(73, 73, 73, 255), 3.0f);
+
+		// Draw Exclusion Rects:
+		// 
+		//GLFWChainRect* chain = p->exclusions;
+		//while (chain != nullptr)
+		//{
+		//	DrawList->AddRectFilled({ (float)(chain->rect.left + x),(float)(chain->rect.top + y) }, { (float)(chain->rect.right + x),(float)(chain->rect.bottom + y) }, IM_COL32(0, 175, 0, 100));
+		//	chain = chain->next;
+		//}
 
 		ImGui::PopStyleVar(2);
 		ImGui::PopStyleColor();

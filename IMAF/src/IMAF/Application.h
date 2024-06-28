@@ -50,6 +50,24 @@ namespace IMAF
 		int height = -1;
 	};
 
+	struct ExclusionRect
+	{
+	private:
+		struct Rect 
+		{
+			int left;
+			int top;
+			int right;
+			int bottom;
+		} rect;
+
+		ExclusionRect* next = nullptr;
+
+	public:
+		ExclusionRect(int x, int y, int width, int height,ExclusionRect* next) : rect{ x, y, x + width, y + height }, next(next) {};
+		ExclusionRect(int x, int y, int width, int height) : rect{ x, y, x + width, y + height } {};
+	};
+
 	enum TopBorder
 	{
 		None,
@@ -69,6 +87,8 @@ namespace IMAF
 		ButtonSpec close_button;
 		ButtonSpec minimize_button;
 		ButtonSpec maximize_button;
+
+		ExclusionRect* exclusions = nullptr;
 
 		void (*titlebar_draw_f)(const AppProperties*, GLFWwindow*) = nullptr;
 		void (*titlebar_scaling_f)(Titlebar_Properties*, float, GLFWwindow*) = nullptr;
