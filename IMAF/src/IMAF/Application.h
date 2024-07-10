@@ -1,11 +1,13 @@
 #pragma once
 
 #include "imgui.h"
+#include "GLFW/glfw3.h"
 
 #include <memory>
 #include <functional>
 #include <mutex>
 #include <Windows.h>
+#include <array>
 
 #include "Panel.h"
 #include "Scale.h"
@@ -26,46 +28,48 @@ struct GLFWwindow;
 
 namespace IMAF 
 {
-	struct ButtonSpec
+	enum ButtonType : unsigned short
 	{
-		void SetRect(int x, int height)
-		{
-			width = height;
-			this->x = x;
-			y = 0;
-			height = -1;
-		}
-
-		void SetRect(int x, int y, int width, int height)
-		{
-			this->x = x;
-			this->width = width;
-			this->height = height;
-			this->y = y;
-		}
-
-		int x = 0;
-		int y = 0;
-		int width = 50;
-		int height = -1;
+		Close = GLFW_CT_CLOSE_BUTTON,
+		Minimize = GLFW_CT_MINIMIZE_BUTTON,
+		Maximize = GLFW_CT_MAXIMIZE_BUTTON
 	};
 
-	struct ExclusionRect
+	struct ButtonSpec
 	{
-	private:
-		struct Rect 
-		{
-			int left;
-			int top;
-			int right;
-			int bottom;
-		} rect;
+		ButtonSpec(int width, ButtonType type) : width(width), type(type), height(-1), top_offset(0) {};
+		ButtonSpec(int width, int height, int top_offset, ButtonType type) : width(width), height(height), type(type), top_offset(top_offset) {};
 
-		ExclusionRect* next = nullptr;
+		int top_offset;
+		int width;
+		int height;
+		ButtonType type;
+	};
 
-	public:
-		ExclusionRect(int x, int y, int width, int height,ExclusionRect* next) : rect{ x, y, x + width, y + height }, next(next) {};
-		ExclusionRect(int x, int y, int width, int height) : rect{ x, y, x + width, y + height } {};
+	enum GroupAlign : unsigned short
+	{
+		Null,
+		Left = GLFW_CT_ALIGN_LEFT,
+		Center = GLFW_CT_ALIGN_CENTER,
+		Right = GLFW_CT_ALIGN_RIGHT
+	};
+
+	struct ButtonGroup 
+	{
+		std::vector<ButtonSpec> buttons;
+		GroupAlign align = GroupAlign::Right;
+		float edge_offset = 0.f;
+		int inner_spacing = 0;
+	};
+
+	struct ExclusionSpec
+	{
+		float start_offset;
+		int width;
+		int height;
+		int top_offset;
+
+		ExclusionSpec(float start_offset, int top_offset, int width, int height) : start_offset(start_offset), top_offset(top_offset), width(width), height(height) {};
 	};
 
 	enum TopBorder
@@ -80,15 +84,33 @@ namespace IMAF
 
 	struct Titlebar_Properties
 	{
+		//edge offset is the distance from the edge of the window that is specified in align to the first button
+		//0.f with right align will place the first button at the right edge of the window
+		//center align will ignore the edge offset
+		void AddButton(unsigned short group_index, const ButtonSpec& button_spec, float edge_offset = 0.f, GroupAlign align = GroupAlign::Null, int spacing = 0)
+		{
+			if (button_groups.size() > group_index)
+			{
+				button_groups[group_index].buttons.push_back(button_spec);
+				button_groups[group_index].edge_offset = edge_offset == 0.f ? button_groups[group_index].edge_offset : edge_offset;
+				button_groups[group_index].align = align == GroupAlign::Null ? button_groups[group_index].align : align;
+				button_groups[group_index].inner_spacing = spacing == 0 ? button_groups[group_index].inner_spacing : spacing;
+			}
+		}
+
+		// Define DRAW_CT_EXCLUSIONS with the default titlebar drawing function to see the exclusion rects
+		void AddExclusion(const ExclusionSpec& exclusion)
+		{
+			exclusions.push_back(exclusion);
+		}
+
 		int height = 0;
 
 		int top_border = TopBorder::Default;
 
-		ButtonSpec close_button;
-		ButtonSpec minimize_button;
-		ButtonSpec maximize_button;
+		std::array<ButtonGroup,3> button_groups;
 
-		ExclusionRect* exclusions = nullptr;
+		std::vector<ExclusionSpec> exclusions;
 
 		void (*titlebar_draw_f)(const AppProperties*, GLFWwindow*) = nullptr;
 		void (*titlebar_scaling_f)(Titlebar_Properties*, float, GLFWwindow*) = nullptr;
@@ -111,8 +133,20 @@ namespace IMAF
 		const char* name;
 		const char* ini_file = nullptr;
 
-		int width = 0;
-		int height = 0;
+		union 
+		{
+			float relative;
+			int abosulte;
+		} width{ .abosulte = 0 };
+
+		union 
+		{
+			float relative;
+			int abosulte;
+		} height{ .abosulte = 0 };
+
+		bool relative_size = true;
+
 		int min_width = 0;
 		int min_height = 0;
 		float font_size = 18;
@@ -148,6 +182,8 @@ namespace IMAF
 		static void SetDarkColorTheme();
 
 		static void SetDefaultProperties(AppProperties& props);
+
+		void SetTitlebarProperties(const Titlebar_Properties& props);
 
 		void AddPanel(std::shared_ptr<Panel> panel);
 		void RemovePanel(uint64_t id);

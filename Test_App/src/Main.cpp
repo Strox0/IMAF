@@ -53,18 +53,16 @@ int WINAPI wWinMain(HINSTANCE hInstance,HINSTANCE prevhInstance,PWSTR pCmdLine,i
 	props.imgui_docking = true;
 	props.gen_ini = false;
 	props.dpi_aware = true;
-	props.width = 1280;
-	props.height = 720;
-	
+	props.width.relative = 0.75f;
+	props.height.relative = 0.6f;
+	props.relative_size = true;
 	props.custom_titlebar = true;
 
 	props.custom_titlebar_props.height = 50;
-	props.custom_titlebar_props.minimize_button.SetRect(1160,5,40,40);
-	props.custom_titlebar_props.maximize_button.SetRect(1200,5, 40, 40);
-	props.custom_titlebar_props.close_button.SetRect(1240,5, 40, 40);
+	props.custom_titlebar_props.AddButton(0, IMAF::ButtonSpec(40, 40, 5, IMAF::ButtonType::Close));
+	props.custom_titlebar_props.AddButton(0, IMAF::ButtonSpec(40, 40, 5, IMAF::ButtonType::Maximize));
+	props.custom_titlebar_props.AddButton(0, IMAF::ButtonSpec(40, 40, 5, IMAF::ButtonType::Minimize), 0.001f, IMAF::GroupAlign::Right, 5);
 	props.custom_titlebar_props.top_border = IMAF::TopBorder::Thin;
-
-	//props.custom_titlebar_props.exclusions = new IMAF::ExclusionRect(0,0,50,50,new IMAF::ExclusionRect(100,0,50,50));
 
 	IMAF::Application* app = new IMAF::Application(props);
 

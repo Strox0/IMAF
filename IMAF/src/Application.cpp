@@ -7,7 +7,6 @@
 #include "imgui_internal.h"
 
 #include "GLES3/gl3.h"
-#include "GLFW/glfw3.h"
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include "GLFW/glfw3native.h"
@@ -76,16 +75,23 @@ namespace IMAF
 		{
 			int screen_width = GetSystemMetrics(SM_CXSCREEN);
 			int screen_height = GetSystemMetrics(SM_CYSCREEN);
-			m_props.width = screen_width;
-			m_props.height = screen_height;
+			m_props.width.abosulte = screen_width;
+			m_props.height.abosulte = screen_height;
 		}
 
-		if (m_props.width <= 0 || m_props.height <= 0)
+		if (m_props.relative_size && m_props.width.abosulte != 0 && m_props.height.abosulte != 0)
 		{
 			int screen_width = GetSystemMetrics(SM_CXSCREEN);
 			int screen_height = GetSystemMetrics(SM_CYSCREEN);
-			m_props.width = screen_width * 0.65;
-			m_props.height = screen_height * 0.75;
+			m_props.width.abosulte = screen_width * m_props.width.relative;
+			m_props.height.abosulte = screen_height * m_props.height.relative;
+		}
+		else if (m_props.width.abosulte == 0 || m_props.height.abosulte == 0)
+		{
+			int screen_width = GetSystemMetrics(SM_CXSCREEN);
+			int screen_height = GetSystemMetrics(SM_CYSCREEN);
+			m_props.width.abosulte = screen_width * 0.65;
+			m_props.height.abosulte = screen_height * 0.75;
 		}
 		
 		if (m_props.custom_titlebar)
@@ -111,7 +117,7 @@ namespace IMAF
 		if (m_props.fullscreen)
 			monitor = glfwGetPrimaryMonitor();
 
-		mp_window = glfwCreateWindow(m_props.width, m_props.height, m_props.name, monitor, NULL); //Create Window
+		mp_window = glfwCreateWindow(m_props.width.abosulte, m_props.height.abosulte, m_props.name, monitor, NULL); //Create Window
 		if (mp_window == nullptr)
 			return true;
 
@@ -124,9 +130,6 @@ namespace IMAF
 		if (m_props.custom_titlebar)
 		{
 			UpdateGLFWTitlebarRects();
-
-			if (m_props.custom_titlebar_props.exclusions)
-				glfwCustomTitlebarAddExclusion(mp_window, (GLFWChainRect*)m_props.custom_titlebar_props.exclusions);
 
 			glfwSetCustomTitleBar(mp_window, true);
 
@@ -155,8 +158,8 @@ namespace IMAF
 			int screen_width = GetSystemMetrics(SM_CXSCREEN);
 			int screen_height = GetSystemMetrics(SM_CYSCREEN);
 			
-			int pos_x = screen_width / 2 - m_props.width / 2;
-			int pos_y = screen_height / 2 - m_props.height / 2;
+			int pos_x = screen_width / 2 - m_props.width.abosulte / 2;
+			int pos_y = screen_height / 2 - m_props.height.abosulte / 2;
 
 			glfwSetWindowPos(mp_window, pos_x, pos_y);
 		}
@@ -210,6 +213,9 @@ namespace IMAF
 
 		for (const auto& i : platform_io.Monitors)
 		{
+			if (!m_props.dpi_aware && i.MainSize.x != m_screen_size.width && i.MainSize.y != m_screen_size.height)
+				continue;
+
 			std::vector<ImFont*> fonts;
 			float size = std::floorf((float)m_props.font_size * i.DpiScale);
 			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontRegular[0],	sizeof(g_FontRegular),	size, &fontConfig));
@@ -228,9 +234,10 @@ namespace IMAF
 		style.ScaleAllSizes(xscale);
 		m_dpi_scale = xscale;
 
-		int w, h;
-		glfwGetWindowSize(mp_window, &w, &h);
-		glfwSetWindowSize(mp_window, w * xscale, h * yscale);
+		if (m_props.dpi_aware && !m_props.relative_size)
+		{
+			glfwSetWindowSize(mp_window, m_props.width.abosulte * xscale, m_props.height.abosulte * yscale);
+		}
 
 		return false;
 	}
@@ -373,8 +380,8 @@ namespace IMAF
 		props.custom_titlebar = false;
 		props.font_size = 18;
 		props.fullscreen = false;
-		props.height = 500;
-		props.width = 720;
+		props.height.relative = 0.65;
+		props.width.relative = 0.75;
 		props.resizeable = true;
 		props.name = "My Application";
 		props.imgui_docking = false;
@@ -382,6 +389,19 @@ namespace IMAF
 		props.center_window = true;
 		props.maximized = false;
 		props.dpi_aware = true;	
+	}
+
+	void Application::SetTitlebarProperties(const Titlebar_Properties& props)
+	{
+		m_props.custom_titlebar_props = props;
+
+		if (m_props.custom_titlebar_props.titlebar_draw_f == nullptr)
+			m_props.custom_titlebar_props.titlebar_draw_f = DefCustomTitlebarDraw;
+
+		if (m_props.custom_titlebar_props.titlebar_scaling_f == nullptr)
+			m_props.custom_titlebar_props.titlebar_scaling_f = DefCustomTitlebarScaling;
+
+		UpdateGLFWTitlebarRects();
 	}
 
 	void Application::Exit()
@@ -433,32 +453,68 @@ namespace IMAF
 
 	void Application::UpdateGLFWTitlebarRects()
 	{
-		GLFWRect close_r{ 0 }, min_r{ 0 }, max_r{ 0 };
-
-		close_r.top = m_props.custom_titlebar_props.close_button.y;
-		close_r.left = m_props.custom_titlebar_props.close_button.x;
-		close_r.right = close_r.left + m_props.custom_titlebar_props.close_button.width;
-		close_r.bottom = m_props.custom_titlebar_props.close_button.height == -1 ? m_props.custom_titlebar_props.height : m_props.custom_titlebar_props.close_button.height;
-
-		min_r.top = m_props.custom_titlebar_props.minimize_button.y;
-		min_r.left = m_props.custom_titlebar_props.minimize_button.x;
-		min_r.right = min_r.left + m_props.custom_titlebar_props.minimize_button.width;
-		min_r.bottom = m_props.custom_titlebar_props.minimize_button.height == -1 ? m_props.custom_titlebar_props.height : m_props.custom_titlebar_props.minimize_button.height;
-
-		max_r.top = m_props.custom_titlebar_props.maximize_button.y;
-		max_r.left = m_props.custom_titlebar_props.maximize_button.x;
-		max_r.right = max_r.left + m_props.custom_titlebar_props.maximize_button.width;
-		max_r.bottom = m_props.custom_titlebar_props.maximize_button.height == -1 ? m_props.custom_titlebar_props.height : m_props.custom_titlebar_props.maximize_button.height;
-
 		glfwSetCustomTitlebarHeight(mp_window, m_props.custom_titlebar_props.height);
-		glfwSetCustomTitlebarButton(mp_window, GLFW_CT_CLOSE_BUTTON, &close_r);
-		glfwSetCustomTitlebarButton(mp_window, GLFW_CT_MINIMIZE_BUTTON, &min_r);
-		glfwSetCustomTitlebarButton(mp_window, GLFW_CT_MAXIMIZE_BUTTON, &max_r);
+		
+		GLFWChainSpec* chain = nullptr;
+		GLFWChainSpec* start = nullptr;
+		for (const auto& i : m_props.custom_titlebar_props.exclusions)
+		{
+			if (chain == nullptr)
+			{
+				chain = new GLFWChainSpec();
+				start = chain;
+			}
+			else
+			{
+				chain->next = new GLFWChainSpec();
+				chain = chain->next;
+			}
+
+			chain->height = i.height;
+			chain->width = i.width;
+			chain->topOffset = i.top_offset;
+			chain->startOffset = i.start_offset;
+		}
+		
+		if (start)
+		{
+			glfCustomTitlebarRemoveExclusions(mp_window);
+			glfwCustomTitlebarAddExclusion(mp_window, start);
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			if (m_props.custom_titlebar_props.button_groups[i].buttons.size() == 0)
+				continue;
+
+			GLFWChainSpec* chain = new GLFWChainSpec();
+			GLFWChainSpec* start = chain;
+			for (size_t j = 0; j < m_props.custom_titlebar_props.button_groups[i].buttons.size(); j++)
+			{
+				if (m_props.custom_titlebar_props.button_groups[i].buttons[j].height == -1)
+					m_props.custom_titlebar_props.button_groups[i].buttons[j].height = m_props.custom_titlebar_props.height;
+
+				chain->height = m_props.custom_titlebar_props.button_groups[i].buttons[j].height;
+				chain->width = m_props.custom_titlebar_props.button_groups[i].buttons[j].width;
+				chain->buttonType = m_props.custom_titlebar_props.button_groups[i].buttons[j].type;
+				
+				if (j + 1 != m_props.custom_titlebar_props.button_groups[i].buttons.size())
+				{
+					chain->next = new GLFWChainSpec();
+					chain = chain->next;
+				}
+			}
+
+			glfwCustomTitlebarSetGroupAlignment(mp_window, i, m_props.custom_titlebar_props.button_groups[i].align);
+			glfwCustomTitlebarSetGroupOffset(mp_window, i, m_props.custom_titlebar_props.button_groups[i].edge_offset);
+			glfwCustomTitlebarSetGroupSpacing(mp_window, i, m_props.custom_titlebar_props.button_groups[i].inner_spacing);
+			glfwCustomTitlebarAddButtons(mp_window, i, start);
+		}
 	}
 
 	IMAF::Application::SizeRect Application::GetMainApplicationScreenSize()
 	{
-		MONITORINFOEXW monitor_info;
+		MONITORINFOEXW monitor_info = {0};
 		monitor_info.cbSize = sizeof(MONITORINFOEXW);
 		HMONITOR monitor = MonitorFromWindow(glfwGetWin32Window(mp_window), MONITOR_DEFAULTTONEAREST);
 		GetMonitorInfoW(monitor, &monitor_info);
@@ -472,10 +528,10 @@ namespace IMAF
 		m_panels_mutex.unlock();
 	}
 
-    void Application::AddDefDockingSetup(std::function<void(ImGuiID,bool&)> setup_func)
-    {
+	void Application::AddDefDockingSetup(std::function<void(ImGuiID,bool&)> setup_func)
+	{
 		mp_def_docking = setup_func;
-    }
+	}
 
 	void Application::__CallScaleCallback(float x, float y)
 	{
@@ -540,27 +596,81 @@ namespace IMAF
 		ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(37, 37, 37, 0));
 		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 35);
 
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(195, 65, 65, 255));
-		ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(175, 55, 55, 255));
-		ImGui::SetCursorPos({ (float)p->closeButton.left,(float)p->closeButton.top });
-		ImGui::Button("##X", { (float)props->close_button.width,(float)props->close_button.height });
-		ImGui::PopStyleColor(2);
+		for (size_t i = 0; i < props->button_groups.size(); i++)
+		{
+			if (props->button_groups[i].buttons.size() == 0)
+				continue;
 
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(129, 227, 91, 255));
-		ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(106, 226, 59, 255));
-		ImGui::SetCursorPos({ (float)p->minimizeButton.left,(float)p->minimizeButton.top });
-		ImGui::Button("##_", { (float)props->minimize_button.width,(float)props->minimize_button.height });
-		ImGui::PopStyleColor(2);
+			float start_pos = 0;
 
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(255, 196, 107, 255));
-		ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(255, 175, 52, 255));
-		ImGui::SetCursorPos({ (float)p->maximizeButton.left,(float)p->maximizeButton.top });
-		ImGui::Button("##O", { (float)props->maximize_button.width,(float)props->maximize_button.height });
-		ImGui::PopStyleColor(2);
+			switch (props->button_groups[i].align)
+			{
+			case IMAF::GroupAlign::Left:
+				start_pos = (float)w * props->button_groups[i].edge_offset;
+				break;
+			case IMAF::GroupAlign::Right:
+				start_pos = w - props->button_groups[i].edge_offset * w - props->button_groups[i].buttons[0].width;
+				break;
+			case IMAF::GroupAlign::Center:
+			{
+				int width_sum = 0;
+				
+				for (const auto& i : props->button_groups[i].buttons)
+				{
+					width_sum += i.width;
+				}
+				width_sum += (props->button_groups[i].buttons.size() - 1) * props->button_groups[i].inner_spacing;
+				start_pos = (float)(w - width_sum) / 2.f;
+				break;
+			}
+			}
+
+			for (const auto& btn : props->button_groups[i].buttons)
+			{
+				ImVec2 button_pos;
+				ImVec2 button_size;
+				button_pos.x = start_pos;
+				button_pos.y = btn.top_offset;
+				button_size.x = btn.width;
+				button_size.y = btn.height;
+
+				switch (btn.type)
+				{
+				case IMAF::ButtonType::Close:
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(195, 65, 65, 255));
+					ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(175, 55, 55, 255));
+					ImGui::SetCursorPos(button_pos);
+					ImGui::Button("##X", button_size);
+					ImGui::PopStyleColor(2);
+					break;
+				case IMAF::ButtonType::Minimize:
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(129, 227, 91, 255));
+					ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(106, 226, 59, 255));
+					ImGui::SetCursorPos(button_pos);
+					ImGui::Button("##_", button_size);
+					ImGui::PopStyleColor(2);
+					break;
+				case IMAF::ButtonType::Maximize:
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(255, 196, 107, 255));
+					ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(255, 175, 52, 255));
+					ImGui::SetCursorPos(button_pos);
+					ImGui::Button("##O", button_size);
+					ImGui::PopStyleColor(2);
+					break;
+				default:
+					break;
+				}
+
+				if (props->button_groups[i].align == IMAF::GroupAlign::Center || props->button_groups[i].align == IMAF::GroupAlign::Left)
+					start_pos += btn.width + props->button_groups[i].inner_spacing;
+				else if (props->button_groups[i].align == IMAF::GroupAlign::Right)
+					start_pos -= btn.width + props->button_groups[i].inner_spacing;
+			}
+		}
 
 		ImVec2 text_pos;
-		text_pos.x = w / 2 - ImGui::CalcTextSize(app_props->name).x / 2;
-		text_pos.y = props->height / 2 - ImGui::CalcTextSize(app_props->name).y / 2;
+		text_pos.x = (float)w / 2 - ImGui::CalcTextSize(app_props->name).x / 2;
+		text_pos.y = props->height / 2.f - ImGui::CalcTextSize(app_props->name).y / 2;
 
 		ImGui::SetCursorPos(text_pos);
 		ImGui::Text(app_props->name);
@@ -596,20 +706,74 @@ namespace IMAF
 		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 35);
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0,0 });
 
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(195, 65, 65, 255));
-		ImGui::SetCursorPos({ (float)p->closeButton.left,(float)p->closeButton.top });
-		ImGui::Button("X", { (float)props->close_button.width,(float)props->close_button.height });
-		ImGui::PopStyleColor();
+		for (size_t i = 0; i < props->button_groups.size(); i++)
+		{
+			if (props->button_groups[i].buttons.size() == 0)
+				continue;
 
-		ImGui::SetCursorPos({ (float)p->minimizeButton.left,(float)p->minimizeButton.top });
-		ImGui::Button("_", { (float)props->minimize_button.width,(float)props->minimize_button.height });
+			float start_pos = 0;
 
-		ImGui::SetCursorPos({ (float)p->maximizeButton.left,(float)p->maximizeButton.top });
-		ImGui::Button("O", { (float)props->maximize_button.width,(float)props->maximize_button.height });
+			switch (props->button_groups[i].align)
+			{
+			case IMAF::GroupAlign::Left:
+				start_pos = (float)w * props->button_groups[i].edge_offset;
+				break;
+			case IMAF::GroupAlign::Right:
+				start_pos = w - props->button_groups[i].edge_offset * w - props->button_groups[i].buttons[0].width;
+				break;
+			case IMAF::GroupAlign::Center:
+			{
+				int width_sum = 0;
+
+				for (const auto& i : props->button_groups[i].buttons)
+				{
+					width_sum += i.width;
+				}
+				width_sum += (props->button_groups[i].buttons.size() - 1) * props->button_groups[i].inner_spacing;
+				start_pos = (float)(w - width_sum) / 2.f;
+				break;
+			}
+			}
+
+			for (const auto& btn : props->button_groups[i].buttons)
+			{
+				ImVec2 button_pos;
+				ImVec2 button_size;
+				button_pos.x = start_pos;
+				button_pos.y = btn.top_offset;
+				button_size.x = btn.width;
+				button_size.y = btn.height;
+
+				switch (btn.type)
+				{
+				case IMAF::ButtonType::Close:
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(195, 65, 65, 255));
+					ImGui::SetCursorPos(button_pos);
+					ImGui::Button("X", button_size);
+					ImGui::PopStyleColor();
+					break;
+				case IMAF::ButtonType::Minimize:
+					ImGui::SetCursorPos(button_pos);
+					ImGui::Button("_", button_size);
+					break;
+				case IMAF::ButtonType::Maximize:
+					ImGui::SetCursorPos(button_pos);
+					ImGui::Button("O", button_size);
+					break;
+				default:
+					break;
+				}
+
+				if (props->button_groups[i].align == IMAF::GroupAlign::Center || props->button_groups[i].align == IMAF::GroupAlign::Left)
+					start_pos += btn.width + props->button_groups[i].inner_spacing;
+				else if (props->button_groups[i].align == IMAF::GroupAlign::Right)
+					start_pos -= btn.width + props->button_groups[i].inner_spacing;
+			}
+		}
 
 		ImVec2 text_pos;
-		text_pos.x = w / 2 - ImGui::CalcTextSize(app_props->name).x / 2;
-		text_pos.y = props->height / 2 - ImGui::CalcTextSize(app_props->name).y / 2;
+		text_pos.x = (float)w / 2 - ImGui::CalcTextSize(app_props->name).x / 2;
+		text_pos.y = props->height / 2.f - ImGui::CalcTextSize(app_props->name).y / 2;
 
 		ImGui::SetCursorPos(text_pos);
 		ImGui::Text(app_props->name);
@@ -617,14 +781,14 @@ namespace IMAF
 		ImDrawList* DrawList = ImGui::GetWindowDrawList();
 		DrawList->AddLine({ (float)x,(float)(props->height - 1 + y) }, { (float)(w + x),(float)(props->height - 1 + y) }, IM_COL32(73, 73, 73, 255), 3.0f);
 
-		// Draw Exclusion Rects:
-		// 
-		//GLFWChainRect* chain = p->exclusions;
-		//while (chain != nullptr)
-		//{
-		//	DrawList->AddRectFilled({ (float)(chain->rect.left + x),(float)(chain->rect.top + y) }, { (float)(chain->rect.right + x),(float)(chain->rect.bottom + y) }, IM_COL32(0, 175, 0, 100));
-		//	chain = chain->next;
-		//}
+#ifdef DRAW_CT_EXCLUSIONS
+		for (const auto& i : props->exclusions)
+		{
+			ImVec2 start_pos = { (float)(i.start_offset * w + x),(float)(i.top_offset + y) };
+			ImVec2 end_pos = { (float)(i.start_offset * w + x + i.width),(float)(i.top_offset + i.height + y) };
+			DrawList->AddRectFilled(start_pos, end_pos, IM_COL32(0, 175, 0, 100));
+		}
+#endif // DRAW_CT_EXCLUSIONS
 
 		ImGui::PopStyleVar(2);
 		ImGui::PopStyleColor();
@@ -636,24 +800,25 @@ namespace IMAF
 
 	void DefCustomTitlebarScaling(Titlebar_Properties* out_props, float scale, GLFWwindow* window)
 	{
-		//Get current button positions
-		const GLFWcustomtitlebar* pt = glfwGetCustomTitlebarProperties(window);
-
-		out_props->close_button.x = pt->closeButton.left;
-		out_props->close_button.y = pt->closeButton.top;
-		out_props->minimize_button.x = pt->minimizeButton.left;
-		out_props->minimize_button.y = pt->minimizeButton.top;
-		out_props->maximize_button.x = pt->maximizeButton.left;
-		out_props->maximize_button.y = pt->maximizeButton.top;
-
 		//Scale button width and titlebar height
 		out_props->height *= scale;
-		out_props->close_button.width *= scale;
-		out_props->close_button.height = out_props->close_button.height == -1 ? -1 : out_props->close_button.height * scale;
-		out_props->minimize_button.width *= scale;
-		out_props->minimize_button.height = out_props->minimize_button.height == -1 ? -1 : out_props->minimize_button.height * scale;
-		out_props->maximize_button.width *= scale;
-		out_props->maximize_button.height = out_props->maximize_button.height == -1 ? -1 : out_props->maximize_button.height * scale;
+
+		for (auto& i : out_props->exclusions)
+		{
+			i.height *= scale;
+			i.width *= scale;
+			i.top_offset *= scale;
+		}
+
+		for (auto& i : out_props->button_groups)
+		{
+			for (auto& i : i.buttons)
+			{
+				i.height *= scale;
+				i.width *= scale;
+				i.top_offset *= scale;
+			}
+		}
 	}
 
 	bool Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
