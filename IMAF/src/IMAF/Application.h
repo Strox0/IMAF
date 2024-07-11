@@ -196,8 +196,6 @@ namespace IMAF
 
 		void __CallScaleCallback(float x, float y);
 
-		void ReCaclWindowSize();
-
 		friend void End();
 		friend bool Begin(const char* name, bool* p_open, ImGuiWindowFlags flags);
 

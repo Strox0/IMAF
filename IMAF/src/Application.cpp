@@ -23,8 +23,6 @@ void __DPICallBack(GLFWwindow* window, float xscale, float yscale)
 {
 	IMAF::Application* app = (IMAF::Application*)glfwGetWindowUserPointer(window);
 	app->__CallScaleCallback(xscale, yscale);
-
-	app->ReCaclWindowSize();
 }
 
 namespace IMAF
@@ -66,6 +64,9 @@ namespace IMAF
 		glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
 		glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
+		if (m_props.dpi_aware)
+			glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+
 		if (m_props.resizeable)
 			glfwWindowHint(GLFW_RESIZABLE, true);
 		else
@@ -90,8 +91,8 @@ namespace IMAF
 		{
 			int screen_width = GetSystemMetrics(SM_CXSCREEN);
 			int screen_height = GetSystemMetrics(SM_CYSCREEN);
-			m_props.width.abosulte = screen_width * 0.65;
-			m_props.height.abosulte = screen_height * 0.75;
+			m_props.width.abosulte = screen_width * 0.65f;
+			m_props.height.abosulte = screen_height * 0.75f;
 		}
 		
 		if (m_props.custom_titlebar)
@@ -142,6 +143,7 @@ namespace IMAF
 
 		if (m_props.dpi_aware)
 		{
+			glfwSetWindowSize(mp_window, m_props.width.abosulte, m_props.height.abosulte);
 			glfwSetWindowContentScaleCallback(mp_window, __DPICallBack);
 		}
 
@@ -535,26 +537,13 @@ namespace IMAF
 
 	void Application::__CallScaleCallback(float x, float y)
 	{
-		mp_scaler->SetMainWindowScale((x < y ? x : y));
-	}
+		if (x != m_dpi_scale)
+		{
+			if (mp_scaler)
+				mp_scaler->SetMainWindowScale((x < y ? x : y));
 
-	void Application::ReCaclWindowSize()
-	{
-		SizeRect new_screen_size = GetMainApplicationScreenSize();
-
-		if (new_screen_size != m_screen_size)
-		{			
-			int w, h;
-			glfwGetWindowSize(mp_window, &w, &h);
-
-			float new_dpi_scale, y;
-			glfwGetWindowContentScale(mp_window, &new_dpi_scale, &y);
-
-			float style_scale = new_dpi_scale / m_dpi_scale;
-			m_dpi_scale = new_dpi_scale;
-
-			float x_ratio = (float)w / (float)m_screen_size.width;
-			float y_ratio = (float)h / (float)m_screen_size.height;
+			float style_scale = x / m_dpi_scale;
+			m_dpi_scale = x;
 
 			ImGui::GetStyle().ScaleAllSizes(style_scale);
 
@@ -565,10 +554,6 @@ namespace IMAF
 
 				UpdateGLFWTitlebarRects();
 			}
-
-			glfwSetWindowSize(mp_window, std::lround((float)new_screen_size.width * x_ratio), std::lround((float)new_screen_size.height * y_ratio));
-
-			m_screen_size = new_screen_size;
 		}
 	}
 
