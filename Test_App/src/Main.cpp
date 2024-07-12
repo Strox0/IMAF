@@ -15,14 +15,17 @@ public:
 	{
 		IMAF::Begin("Hello");
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		ImGui::Text("Icons : " ICON_FA_ANCHOR ICON_FA_BANDAGE ICON_FA_HOTEL ICON_FA_HAMMER ICON_FA_KEY ICON_FA_CHECK ICON_FA_USER);
 		IMAF::End();
 
 		IMAF::Begin("Something");
 		
-		ImGui::PushFont(IMAF::GetFont(FONT_BOLD_NORMAL));
+		ImGui::PushFont(IMAF::GetFont(FONT_EXTRABOLD_NORMAL));
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,IMAF::Val(20,20));
 		ImGui::Button("Click me", { IMAF::Val(200.f,100.f) });
-		ImGui::Button("Click me", { IMAF::Val(200.f,100.f) });
+		ImGui::PopFont();
+		ImGui::PushFont(IMAF::GetFont(FONT_LARGE_ICON));
+		ImGui::Button(ICON_FA_THUMBS_UP, { IMAF::Val(200.f,100.f) });
 		ImGui::PopFont();
 		ImGui::PopStyleVar();
 		IMAF::End();

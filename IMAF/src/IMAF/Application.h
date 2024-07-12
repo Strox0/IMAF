@@ -17,17 +17,25 @@
 
 #define FONT_DEFAULT				0
 #define FONT_NORMAL					0
-#define FONT_LIGHT_NORMAL			1
-#define FONT_MEDIUM_NORMAL			2
-#define FONT_SEMIBOLD_NORMAL		3
-#define FONT_BOLD_NORMAL			4
-#define FONT_EXTRABOLD_NORMAL		5
+#define FONT_ICON					1
+#define FONT_LARGE_ICON				2
+#define FONT_LIGHT_NORMAL			3
+#define FONT_MEDIUM_NORMAL			4
+#define FONT_SEMIBOLD_NORMAL		5
+#define FONT_BOLD_NORMAL			6
+#define FONT_EXTRABOLD_NORMAL		7
 #define FONT_LAST FONT_EXTRABOLD_NORMAL
 
 struct GLFWwindow;
 
 namespace IMAF 
 {
+	enum IconFont : unsigned short
+	{
+		FontAwesome6_Regluar,
+		FontAwesome6_Solid
+	};
+
 	enum ButtonType : unsigned short
 	{
 		Close = GLFW_CT_CLOSE_BUTTON,
@@ -149,8 +157,11 @@ namespace IMAF
 
 		int min_width = 0;
 		int min_height = 0;
-		float font_size = 18;
 		
+		float font_size = 18;
+		IconFont font_icon = IconFont::FontAwesome6_Solid;
+		float icon_size = 0.f;
+
 		bool dpi_aware = true;
 		bool resizeable = true;
 		bool fullscreen = false;
@@ -159,7 +170,6 @@ namespace IMAF
 		bool center_window = true;
 		bool gen_ini = false;
 
-		//WIP
 		Titlebar_Properties custom_titlebar_props;
 		bool custom_titlebar = false;
 

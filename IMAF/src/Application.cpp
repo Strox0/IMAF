@@ -213,6 +213,9 @@ namespace IMAF
 
 		ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
 
+		if (m_props.icon_size == 0.f)
+			m_props.icon_size = m_props.font_size * 2;
+
 		for (const auto& i : platform_io.Monitors)
 		{
 			if (!m_props.dpi_aware && i.MainSize.x != m_screen_size.width && i.MainSize.y != m_screen_size.height)
@@ -221,6 +224,27 @@ namespace IMAF
 			std::vector<ImFont*> fonts;
 			float size = std::floorf((float)m_props.font_size * i.DpiScale);
 			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontRegular[0],	sizeof(g_FontRegular),	size, &fontConfig));
+
+			static const ImWchar icon_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+			fontConfig.MergeMode = true;
+			fontConfig.PixelSnapH = true;
+			fontConfig.GlyphMinAdvanceX = size;
+
+			if (m_props.font_icon == IconFont::FontAwesome6_Regluar)
+				fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_IconsRegular[0],sizeof(g_IconsRegular),size, &fontConfig, icon_ranges));
+			else if (m_props.font_icon == IconFont::FontAwesome6_Solid)
+				fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_IconsSolid[0],sizeof(g_IconsSolid),size, &fontConfig, icon_ranges));
+
+			fontConfig.MergeMode = false;
+
+			if (m_props.font_icon == IconFont::FontAwesome6_Regluar)
+				fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_IconsRegular[0], sizeof(g_IconsRegular), std::floorf(m_props.icon_size * i.DpiScale), &fontConfig, icon_ranges));
+			else if (m_props.font_icon == IconFont::FontAwesome6_Solid)
+				fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_IconsSolid[0], sizeof(g_IconsSolid), std::floorf(m_props.icon_size * i.DpiScale), &fontConfig, icon_ranges));
+
+			fontConfig.PixelSnapH = false;
+			fontConfig.GlyphMinAdvanceX = 0;
+
 			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontLight[0],		sizeof(g_FontLight),	size, &fontConfig));
 			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontMedium[0],		sizeof(g_FontMedium),	size, &fontConfig));
 			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontSemibold[0],	sizeof(g_FontSemibold), size, &fontConfig));
