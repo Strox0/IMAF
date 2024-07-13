@@ -307,11 +307,13 @@ namespace IMAF
 				BeginRenderDockspace();
 
 			m_panels_mutex.lock();
-			for (auto& i : m_panels)
+			std::vector<std::shared_ptr<Panel>> panels_copy = m_panels;
+			m_panels_mutex.unlock();
+
+			for (auto& i : panels_copy)
 			{
 				i->UiRender();
 			}
-			m_panels_mutex.unlock();
 
 			//End dockspace window
 			if (m_props.imgui_docking)
