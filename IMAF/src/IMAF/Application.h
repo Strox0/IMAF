@@ -180,7 +180,6 @@ namespace IMAF
 	{
 	public:
 		explicit Application(const AppProperties& props = AppProperties());
-		~Application();
 
 		//Will run once before the window rendering but after the backend initalization
 		void SetUp(std::function<void()> func);
@@ -232,7 +231,8 @@ namespace IMAF
 		};
 
 		bool Init();
-		void Shutdown();
+		bool CreateApplication();
+		void Shutdown(bool failure);
 
 		void BeginRender();
 		void EndRender();
@@ -249,7 +249,6 @@ namespace IMAF
 		ImGuiID m_dockspace_id = 0;
 
 		bool m_should_exit = false;
-		bool m_exited = true;
 
 		std::mutex m_panels_mutex;
 		std::vector<std::shared_ptr<Panel>> m_panels;

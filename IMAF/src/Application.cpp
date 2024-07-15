@@ -29,11 +29,10 @@ namespace IMAF
 {
 	Application::Application(const AppProperties& props) : m_props(props) 
 	{
-		//m_props.custom_titlebar = false;//DISABLE CUSTOM TITLEBAR
-		if (Init())
+		if (!Init())
 		{
 			MessageBoxA(NULL, "Application Initalization Failed", "Fatal Error", MB_OK | MB_ICONERROR);
-			Shutdown();
+			Shutdown(true);
 			ExitProcess(1);
 		}
 
@@ -46,16 +45,11 @@ namespace IMAF
 		}
 	}
 
-	Application::~Application()
-	{
-		Shutdown();
-	}
-
 	bool Application::Init()
 	{
 		glfwSetErrorCallback(glfw_error_callback);
 		if (!glfwInit())
-			return true;
+			return false;
 
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -114,13 +108,18 @@ namespace IMAF
 			}
 		}
 
+		return true;
+	}
+
+	bool Application::CreateApplication()
+	{
 		GLFWmonitor* monitor = nullptr;
 		if (m_props.fullscreen)
 			monitor = glfwGetPrimaryMonitor();
 
 		mp_window = glfwCreateWindow(m_props.width.abosulte, m_props.height.abosulte, m_props.name, monitor, NULL); //Create Window
 		if (mp_window == nullptr)
-			return true;
+			return false;
 
 		m_screen_size = GetMainApplicationScreenSize();
 
@@ -155,11 +154,11 @@ namespace IMAF
 		if (m_props.maximized)
 			glfwSetWindowPos(mp_window, 0, 0);
 
-		if (m_props.center_window && !m_props.fullscreen) 
+		if (m_props.center_window && !m_props.fullscreen)
 		{
 			int screen_width = GetSystemMetrics(SM_CXSCREEN);
 			int screen_height = GetSystemMetrics(SM_CYSCREEN);
-			
+
 			int pos_x = screen_width / 2 - m_props.width.abosulte / 2;
 			int pos_y = screen_height / 2 - m_props.height.abosulte / 2;
 
@@ -223,7 +222,7 @@ namespace IMAF
 
 			std::vector<ImFont*> fonts;
 			float size = std::floorf((float)m_props.font_size * i.DpiScale);
-			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontRegular[0],	sizeof(g_FontRegular),	size, &fontConfig));
+			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontRegular[0], sizeof(g_FontRegular), size, &fontConfig));
 
 			static const ImWchar icon_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
 			fontConfig.MergeMode = true;
@@ -231,9 +230,9 @@ namespace IMAF
 			fontConfig.GlyphMinAdvanceX = size;
 
 			if (m_props.font_icon == IconFont::FontAwesome6_Regluar)
-				fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_IconsRegular[0],sizeof(g_IconsRegular),size, &fontConfig, icon_ranges));
+				fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_IconsRegular[0], sizeof(g_IconsRegular), size, &fontConfig, icon_ranges));
 			else if (m_props.font_icon == IconFont::FontAwesome6_Solid)
-				fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_IconsSolid[0],sizeof(g_IconsSolid),size, &fontConfig, icon_ranges));
+				fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_IconsSolid[0], sizeof(g_IconsSolid), size, &fontConfig, icon_ranges));
 
 			fontConfig.MergeMode = false;
 
@@ -245,11 +244,11 @@ namespace IMAF
 			fontConfig.PixelSnapH = false;
 			fontConfig.GlyphMinAdvanceX = 0;
 
-			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontLight[0],		sizeof(g_FontLight),	size, &fontConfig));
-			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontMedium[0],		sizeof(g_FontMedium),	size, &fontConfig));
-			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontSemibold[0],	sizeof(g_FontSemibold), size, &fontConfig));
-			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontBold[0],		sizeof(g_FontBold),		size, &fontConfig));
-			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontExtrabold[0],	sizeof(g_FontExtrabold),size, &fontConfig));
+			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontLight[0], sizeof(g_FontLight), size, &fontConfig));
+			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontMedium[0], sizeof(g_FontMedium), size, &fontConfig));
+			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontSemibold[0], sizeof(g_FontSemibold), size, &fontConfig));
+			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontBold[0], sizeof(g_FontBold), size, &fontConfig));
+			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontExtrabold[0], sizeof(g_FontExtrabold), size, &fontConfig));
 
 			m_fonts[i.DpiScale] = fonts;
 		}
@@ -265,7 +264,7 @@ namespace IMAF
 			glfwSetWindowSize(mp_window, m_props.width.abosulte * xscale, m_props.height.abosulte * yscale);
 		}
 
-		return false;
+		return true;
 	}
 
 	void Application::AddPanel(std::shared_ptr<Panel> panel)
@@ -285,6 +284,13 @@ namespace IMAF
 
 	void Application::Run()
 	{
+		if (!CreateApplication())
+		{
+			MessageBoxA(NULL, "Application Creation Failed", "Fatal Error", MB_OK | MB_ICONERROR);
+			Shutdown(true);
+			ExitProcess(1);
+		}
+
 		if (mp_setup_func)
 			mp_setup_func();
 
@@ -295,7 +301,6 @@ namespace IMAF
 			mp_scaler->SetMainWindowScale((xscale < yscale ? xscale : yscale));
 		}
 
-		m_exited = false;
 		while (!glfwWindowShouldClose(mp_window) && !m_should_exit)
 		{
 			BeginRender();
@@ -331,30 +336,26 @@ namespace IMAF
 
 			EndRender();
 		}
-		m_exited = true;
+
+		Shutdown(false);
 	}
 
-	void Application::Shutdown()
+	void Application::Shutdown(bool failure)
 	{
-		m_should_exit = true;
-		while (!m_exited)
-		{
-			Sleep(5);
-		}
-
 		if (mp_scaler)
 			mp_scaler->Shutdown();
 
-		// Cleanup
-		if (ImGui::GetIO().BackendRendererUserData != nullptr)
-			ImGui_ImplOpenGL3_Shutdown();
-		if (ImGui::GetIO().BackendPlatformUserData != nullptr)
-			ImGui_ImplGlfw_Shutdown();
-		ImGui::DestroyContext();
+		if (!failure)
+		{
+			if (ImGui::GetIO().BackendRendererUserData != nullptr)
+				ImGui_ImplOpenGL3_Shutdown();
+			if (ImGui::GetIO().BackendPlatformUserData != nullptr)
+				ImGui_ImplGlfw_Shutdown();
+			ImGui::DestroyContext();
 
-		if (glfwInit())
 			glfwDestroyWindow(mp_window);
-		glfwTerminate();
+			glfwTerminate();
+		}
 	}
 
 	void Application::BeginRender()
