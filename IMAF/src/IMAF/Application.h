@@ -121,7 +121,7 @@ namespace IMAF
 		std::vector<ExclusionSpec> exclusions;
 
 		void (*titlebar_draw_f)(const AppProperties*, GLFWwindow*) = nullptr;
-		void (*titlebar_scaling_f)(Titlebar_Properties*, float, GLFWwindow*) = nullptr;
+		void (*titlebar_scaling_f)(Titlebar_Properties*, float) = nullptr;
 	};
 
 	void End();
@@ -134,24 +134,24 @@ namespace IMAF
 	ImFont* GetFont(int type);
 
 	void DefCustomTitlebarDraw(const AppProperties* app_props,GLFWwindow* window);
-	void DefCustomTitlebarScaling(Titlebar_Properties* out_props, float scale, GLFWwindow* window);
+	void DefCustomTitlebarScaling(Titlebar_Properties* out_props, float scale);
 
 	struct AppProperties
 	{
 		const char* name;
 		const char* ini_file = nullptr;
 
-		union 
+		struct 
 		{
 			float relative;
 			int abosulte;
-		} width{ .abosulte = 0 };
+		} width{ .relative = 0,.abosulte = 0 };
 
-		union 
+		struct 
 		{
 			float relative;
 			int abosulte;
-		} height{ .abosulte = 0 };
+		} height{ .relative = 0,.abosulte = 0 };
 
 		bool relative_size = true;
 
@@ -182,7 +182,7 @@ namespace IMAF
 		explicit Application(const AppProperties& props = AppProperties());
 
 		//Will run once before the window rendering but after the backend initalization
-		void SetUp(std::function<void()> func);
+		void SetUp(std::function<void(const AppProperties&, GLFWwindow*)> func);
 
 		void Run();
 		void Exit();
@@ -230,6 +230,22 @@ namespace IMAF
 			}
 		};
 
+		struct ScreenRect
+		{
+			int left;
+			int top;
+			int right;
+			int bottom;
+
+			ScreenRect(int left, int top, int right, int bottom) : left(left), top(top), right(right), bottom(bottom) {};
+			ScreenRect() : left(0), top(0), right(0), bottom(0) {};
+
+			SizeRect GetSize() const
+			{
+				return SizeRect(right - left, bottom - top);
+			}
+		};
+
 		bool Init();
 		bool CreateApplication();
 		void Shutdown(bool failure);
@@ -241,7 +257,7 @@ namespace IMAF
 
 		void UpdateGLFWTitlebarRects();
 
-		IMAF::Application::SizeRect GetMainApplicationScreenSize();
+		IMAF::Application::ScreenRect GetMainApplicationScreen();
 
 	private:
 		GLFWwindow* mp_window = nullptr;
@@ -253,12 +269,12 @@ namespace IMAF
 		std::mutex m_panels_mutex;
 		std::vector<std::shared_ptr<Panel>> m_panels;
 
-		std::function<void()> mp_setup_func;
+		std::function<void(const IMAF::AppProperties&, GLFWwindow*)> mp_setup_func;
 		std::function<void(ImGuiID,bool&)> mp_def_docking;
 		
 		Scale::Scaler* mp_scaler = nullptr;
 
-		SizeRect m_screen_size;
+		ScreenRect m_screen_rect;
 		float m_dpi_scale = 1.0f;
 
 		std::unordered_map<float,std::vector<ImFont*>> m_fonts;

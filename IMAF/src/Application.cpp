@@ -66,22 +66,20 @@ namespace IMAF
 		else
 			glfwWindowHint(GLFW_RESIZABLE, false);
 
-		if (m_props.maximized)
+		if (m_props.relative_size)
 		{
-			int screen_width = GetSystemMetrics(SM_CXSCREEN);
-			int screen_height = GetSystemMetrics(SM_CYSCREEN);
-			m_props.width.abosulte = screen_width;
-			m_props.height.abosulte = screen_height;
-		}
+			if (m_props.width.relative == 0 || m_props.width.relative > 1)
+				m_props.width.relative = 0.65f;
 
-		if (m_props.relative_size && m_props.width.abosulte != 0 && m_props.height.abosulte != 0)
-		{
+			if (m_props.height.relative == 0 || m_props.height.relative > 1)
+				m_props.height.relative = 0.75f;
+
 			int screen_width = GetSystemMetrics(SM_CXSCREEN);
 			int screen_height = GetSystemMetrics(SM_CYSCREEN);
 			m_props.width.abosulte = screen_width * m_props.width.relative;
 			m_props.height.abosulte = screen_height * m_props.height.relative;
 		}
-		else if (m_props.width.abosulte == 0 || m_props.height.abosulte == 0)
+		else if (m_props.width.abosulte <= 0 || m_props.height.abosulte <= 0)
 		{
 			int screen_width = GetSystemMetrics(SM_CXSCREEN);
 			int screen_height = GetSystemMetrics(SM_CYSCREEN);
@@ -121,7 +119,32 @@ namespace IMAF
 		if (mp_window == nullptr)
 			return false;
 
-		m_screen_size = GetMainApplicationScreenSize();
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+		if (m_props.imgui_docking)
+			io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;       // Enable Keyboard Controls
+		//io.ConfigViewportsNoAutoMerge = true;
+		//io.ConfigViewportsNoTaskBarIcon = true;
+
+		if (m_props.dpi_aware)
+		{
+			glfwSetWindowSize(mp_window, m_props.width.abosulte, m_props.height.abosulte);
+			glfwSetWindowContentScaleCallback(mp_window, __DPICallBack);
+		}
+
+		m_screen_rect = GetMainApplicationScreen();
+		SizeRect size_calc_screen(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+
+		if (m_screen_rect.GetSize() != size_calc_screen)
+		{
+			m_props.width.abosulte = m_screen_rect.GetSize().width * m_props.width.relative;
+			m_props.height.abosulte = m_screen_rect.GetSize().height * m_props.height.relative;
+			glfwSetWindowSize(mp_window, m_props.width.abosulte, m_props.height.abosulte);
+		}
 
 		glfwSetWindowUserPointer(mp_window, this);
 		glfwMakeContextCurrent(mp_window);
@@ -140,43 +163,27 @@ namespace IMAF
 				m_props.custom_titlebar_props.titlebar_scaling_f = DefCustomTitlebarScaling;
 		}
 
-		if (m_props.dpi_aware)
-		{
-			glfwSetWindowSize(mp_window, m_props.width.abosulte, m_props.height.abosulte);
-			glfwSetWindowContentScaleCallback(mp_window, __DPICallBack);
-		}
-
 		if (m_props.min_height != 0 && m_props.min_width != 0 && m_props.resizeable)
 		{
 			glfwSetWindowSizeLimits(mp_window, m_props.min_width, m_props.min_height, GLFW_DONT_CARE, GLFW_DONT_CARE);
 		}
 
 		if (m_props.maximized)
-			glfwSetWindowPos(mp_window, 0, 0);
+			glfwMaximizeWindow(mp_window);
 
 		if (m_props.center_window && !m_props.fullscreen)
 		{
-			int screen_width = GetSystemMetrics(SM_CXSCREEN);
-			int screen_height = GetSystemMetrics(SM_CYSCREEN);
+			int w = std::abs(m_screen_rect.right - m_screen_rect.left);
+			int h = std::abs(m_screen_rect.bottom - m_screen_rect.top);
 
-			int pos_x = screen_width / 2 - m_props.width.abosulte / 2;
-			int pos_y = screen_height / 2 - m_props.height.abosulte / 2;
+			int center_x = m_screen_rect.left + w / 2;
+			int center_y = m_screen_rect.top + h / 2;
+
+			int pos_x = center_x - m_props.width.abosulte / 2;
+			int pos_y = center_y - m_props.height.abosulte / 2;
 
 			glfwSetWindowPos(mp_window, pos_x, pos_y);
 		}
-
-		glfwShowWindow(mp_window);
-
-		IMGUI_CHECKVERSION();
-		ImGui::CreateContext();
-		ImGuiIO& io = ImGui::GetIO(); (void)io;
-
-		if (m_props.imgui_docking)
-			io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
-		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;       // Enable Keyboard Controls
-		//io.ConfigViewportsNoAutoMerge = true;
-		//io.ConfigViewportsNoTaskBarIcon = true;
 
 		if (m_props.ini_file)
 			io.IniFilename = m_props.ini_file;
@@ -217,7 +224,7 @@ namespace IMAF
 
 		for (const auto& i : platform_io.Monitors)
 		{
-			if (!m_props.dpi_aware && i.MainSize.x != m_screen_size.width && i.MainSize.y != m_screen_size.height)
+			if (!m_props.dpi_aware && i.MainSize.x != m_screen_rect.GetSize().width && i.MainSize.y != m_screen_rect.GetSize().height)
 				continue;
 
 			std::vector<ImFont*> fonts;
@@ -259,10 +266,15 @@ namespace IMAF
 		style.ScaleAllSizes(xscale);
 		m_dpi_scale = xscale;
 
+		if (mp_scaler)
+			mp_scaler->SetMainWindowScale((xscale < yscale ? xscale : yscale));
+		
 		if (m_props.dpi_aware && !m_props.relative_size)
 		{
 			glfwSetWindowSize(mp_window, m_props.width.abosulte * xscale, m_props.height.abosulte * yscale);
 		}
+
+		glfwShowWindow(mp_window);
 
 		return true;
 	}
@@ -277,7 +289,7 @@ namespace IMAF
 		}
 	}
 
-	void Application::SetUp(std::function<void()> func)
+	void Application::SetUp(std::function<void(const IMAF::AppProperties&,GLFWwindow*)> func)
 	{
 		mp_setup_func = func;
 	}
@@ -292,14 +304,7 @@ namespace IMAF
 		}
 
 		if (mp_setup_func)
-			mp_setup_func();
-
-		if (mp_scaler)
-		{
-			float xscale, yscale;
-			glfwGetWindowContentScale(mp_window, &xscale, &yscale);
-			mp_scaler->SetMainWindowScale((xscale < yscale ? xscale : yscale));
-		}
+			mp_setup_func(m_props,mp_window);
 
 		while (!glfwWindowShouldClose(mp_window) && !m_should_exit)
 		{
@@ -541,13 +546,13 @@ namespace IMAF
 		}
 	}
 
-	IMAF::Application::SizeRect Application::GetMainApplicationScreenSize()
+	IMAF::Application::ScreenRect Application::GetMainApplicationScreen()
 	{
 		MONITORINFOEXW monitor_info = {0};
 		monitor_info.cbSize = sizeof(MONITORINFOEXW);
 		HMONITOR monitor = MonitorFromWindow(glfwGetWin32Window(mp_window), MONITOR_DEFAULTTONEAREST);
 		GetMonitorInfoW(monitor, &monitor_info);
-		return { monitor_info.rcMonitor.right - monitor_info.rcMonitor.left, monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top };
+		return { monitor_info.rcMonitor.left, monitor_info.rcMonitor.top, monitor_info.rcMonitor.right, monitor_info.rcMonitor.bottom };
 	}
 
 	void Application::RemovePanel(uint64_t id)
@@ -577,7 +582,7 @@ namespace IMAF
 			if (m_props.custom_titlebar)
 			{
 				if (m_props.custom_titlebar_props.titlebar_scaling_f)
-					m_props.custom_titlebar_props.titlebar_scaling_f(&m_props.custom_titlebar_props, style_scale, mp_window);
+					m_props.custom_titlebar_props.titlebar_scaling_f(&m_props.custom_titlebar_props, style_scale);
 
 				UpdateGLFWTitlebarRects();
 			}
@@ -688,7 +693,7 @@ namespace IMAF
 		ImGui::Text(app_props->name);
 
 		ImDrawList* DrawList = ImGui::GetWindowDrawList();
-		DrawList->AddLine({ (float)x,(float)(props->height - 1 + y) }, { (float)(w+x),(float)(props->height - 1 + y) }, IM_COL32(73,73,73,255), 3.0f);
+		DrawList->AddLine({ (float)x,(float)(props->height - 2 + y) }, { (float)(w+x),(float)(props->height - 2 + y) }, IM_COL32(73,73,73,255), 3.0f);
 
 		ImGui::PopStyleVar();
 		ImGui::PopStyleColor();
@@ -791,7 +796,7 @@ namespace IMAF
 		ImGui::Text(app_props->name);
 
 		ImDrawList* DrawList = ImGui::GetWindowDrawList();
-		DrawList->AddLine({ (float)x,(float)(props->height - 1 + y) }, { (float)(w + x),(float)(props->height - 1 + y) }, IM_COL32(73, 73, 73, 255), 3.0f);
+		DrawList->AddLine({ (float)x,(float)(props->height - 2 + y) }, { (float)(w + x),(float)(props->height - 2 + y) }, IM_COL32(73, 73, 73, 255), 3.0f);
 
 #ifdef DRAW_CT_EXCLUSIONS
 		for (const auto& i : props->exclusions)
@@ -810,7 +815,7 @@ namespace IMAF
 		ImGui::PopStyleColor();
 	}
 
-	void DefCustomTitlebarScaling(Titlebar_Properties* out_props, float scale, GLFWwindow* window)
+	void DefCustomTitlebarScaling(Titlebar_Properties* out_props, float scale)
 	{
 		//Scale button width and titlebar height
 		out_props->height *= scale;
@@ -842,6 +847,10 @@ namespace IMAF
 
 		ImGui::PushFont(g_app->m_fonts.at(g_app->mp_scaler->GetWindowScale(name))[FONT_NORMAL]);
 
+		float style_scale = g_app->mp_scaler->GetWindowScale(name) / g_app->m_dpi_scale;
+
+		//ImGui::GetStyle().ScaleAllSizes(style_scale);
+
 		return ImGui::Begin(name, p_open, flags);
 	}
 
@@ -863,9 +872,13 @@ namespace IMAF
 
 		ImGui::PopFont();
 
+		float window_scale = g_app->mp_scaler->GetCurrentScale();
+
 		g_app->mp_scaler->SetCurrentID(std::string());
 
 		ImGui::End();
+
+		//ImGui::GetStyle().ScaleAllSizes(1.f / window_scale);
 	}
 
 	void Application::SetPrurpleDarkColorTheme()

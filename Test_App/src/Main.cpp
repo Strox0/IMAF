@@ -61,13 +61,20 @@ int WINAPI wWinMain(HINSTANCE hInstance,HINSTANCE prevhInstance,PWSTR pCmdLine,i
 	props.relative_size = true;
 	props.custom_titlebar = true;
 
-	props.custom_titlebar_props.height = 50;
-	props.custom_titlebar_props.AddButton(0, IMAF::ButtonSpec(40, 40, 5, IMAF::ButtonType::Close));
-	props.custom_titlebar_props.AddButton(0, IMAF::ButtonSpec(40, 40, 5, IMAF::ButtonType::Maximize));
-	props.custom_titlebar_props.AddButton(0, IMAF::ButtonSpec(40, 40, 5, IMAF::ButtonType::Minimize), 0.001f, IMAF::GroupAlign::Right, 5);
 	props.custom_titlebar_props.top_border = IMAF::TopBorder::Thin;
 
 	IMAF::Application* app = new IMAF::Application(props);
+
+	app->SetUp([&app](const IMAF::AppProperties& props, GLFWwindow* window) 
+		{
+			IMAF::Titlebar_Properties titlebar_props = props.custom_titlebar_props;
+			titlebar_props.height = IMAF::Val(40);
+			titlebar_props.AddButton(0, IMAF::ButtonSpec(IMAF::Val(30), IMAF::Val(30), IMAF::Val(5), IMAF::ButtonType::Close));
+			titlebar_props.AddButton(0, IMAF::ButtonSpec(IMAF::Val(30), IMAF::Val(30), IMAF::Val(5), IMAF::ButtonType::Maximize));
+			titlebar_props.AddButton(0, IMAF::ButtonSpec(IMAF::Val(30), IMAF::Val(30), IMAF::Val(5), IMAF::ButtonType::Minimize), 0.001f, IMAF::GroupAlign::Right, IMAF::Val(5));
+			app->SetTitlebarProperties(titlebar_props);
+		}
+	);
 
 	std::shared_ptr<ExampleLayer> ptr = std::make_shared<ExampleLayer>();
 	app->AddPanel(ptr);
