@@ -197,6 +197,8 @@ namespace IMAF
 		void AddPanel(std::shared_ptr<Panel> panel);
 		void RemovePanel(uint64_t id);
 
+		GLFWwindow* GetWindowHandle() const;
+
 		//No need for Begin/End just DockBuilderCode
 		//Arguments : ImGuiID of the dockspace and a bool reference to the firstrun var, which if false will not run the code again
 		//Firstrun should always be set to false, unless multiple setups are needed, in which case the first run should be checked inside the function

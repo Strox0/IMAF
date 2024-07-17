@@ -562,6 +562,11 @@ namespace IMAF
 		m_panels_mutex.unlock();
 	}
 
+	GLFWwindow* Application::GetWindowHandle() const
+	{
+		return mp_window;
+	}
+
 	void Application::AddDefDockingSetup(std::function<void(ImGuiID,bool&)> setup_func)
 	{
 		mp_def_docking = setup_func;
