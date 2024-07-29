@@ -19,7 +19,8 @@ project "IMAF"
 		"../vendor/imgui",
 		"../vendor/glfw/include",
 		"../vendor/opengl/api",
-		"../vendor/khr"
+		"../vendor/khr",
+		"../vendor/stb"
 	}
 
 	links {
@@ -29,6 +30,9 @@ project "IMAF"
 
 	targetdir ("bin/" .. outputdir .. "/")
 	objdir ("bin-int/" .. outputdir .. "/")
+
+	filter "action:vs*"
+	  buildoptions {"/MP"}
 
 	filter "system:windows"
       systemversion "latest"

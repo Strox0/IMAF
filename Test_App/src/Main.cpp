@@ -7,15 +7,22 @@
 #include "imgui_internal.h"
 
 #include "IMAF/fonts.h"
+#include "IMAF/Image.h"
 
 class ExampleLayer : public IMAF::Panel
 {
 public:
+	ExampleLayer() : m_image("test.jpg") {}
+
 	void UiRender() override
 	{
 		IMAF::Begin("Hello");
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 		ImGui::Text("Icons : " ICON_FA_ANCHOR ICON_FA_BANDAGE ICON_FA_HOTEL ICON_FA_HAMMER ICON_FA_KEY ICON_FA_CHECK ICON_FA_USER);
+		ImVec2 image_size = ImGui::GetWindowSize();
+		image_size.x -= ImGui::GetStyle().WindowPadding.x*2;
+		image_size.y = m_image.GetSize().y;
+		IMAF::DisplayImGuiImage(m_image,image_size);
 		IMAF::End();
 
 		IMAF::Begin("Something");
@@ -31,6 +38,9 @@ public:
 
 		ImGui::ShowDemoWindow();
 	}
+
+private:
+	IMAF::Image m_image;
 };
 
 void dock_setup(ImGuiID dockspace_id,bool& firstrun)
