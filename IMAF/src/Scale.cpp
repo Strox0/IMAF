@@ -71,10 +71,21 @@ void IMAF::Scale::NewWindowCallback(ImGuiViewport* viewport)
 		ExitProcess(1);
 	}
 
+	if (g_scaler->m_windows[std::string(window->Name)].second)
+		g_scaler->m_windows[std::string(window->Name)].second = false;
+
 	if (!window->ViewportOwned)
-		g_scaler->m_windows[std::string(window->Name)] = g_scaler->m_main_window_scale;
+	{
+		bool fresh = g_scaler->m_windows[std::string(window->Name)].first != g_scaler->m_main_window_scale;
+		g_scaler->m_windows[std::string(window->Name)].first = g_scaler->m_main_window_scale;
+		g_scaler->m_windows[std::string(window->Name)].second = fresh;
+	}
 	else
-		g_scaler->m_windows[std::string(window->Name)] = g_scaler->m_monitors[window->Viewport->PlatformMonitor];
+	{
+		bool fresh = g_scaler->m_windows[std::string(window->Name)].first != g_scaler->m_monitors[window->Viewport->PlatformMonitor];
+		g_scaler->m_windows[std::string(window->Name)].first = g_scaler->m_monitors[window->Viewport->PlatformMonitor];
+		g_scaler->m_windows[std::string(window->Name)].second = fresh;
+	}
 }
 
 IMAF::Scale::Scaler* IMAF::Scale::GetScaler()
@@ -98,7 +109,7 @@ float IMAF::Scale::Scaler::Val(float x) const
 	if (m_curr_id.empty() || m_windows.find(m_curr_id) == m_windows.end())
 		return x * m_main_window_scale;
 
-	return x * m_windows.at(m_curr_id);
+	return x * m_windows.at(m_curr_id).first;
 }
 
 int IMAF::Scale::Scaler::Val(int x) const
@@ -106,7 +117,7 @@ int IMAF::Scale::Scaler::Val(int x) const
 	if (m_curr_id.empty() || m_windows.find(m_curr_id) == m_windows.end())
 		return std::lround((float)x * m_main_window_scale);
 
-	return std::lround((float)x * m_windows.at(m_curr_id));
+	return std::lround((float)x * m_windows.at(m_curr_id).first);
 }
 
 void IMAF::Scale::Scaler::SetMainWindowScale(float scale)
@@ -119,12 +130,25 @@ void IMAF::Scale::Scaler::SetCurrentID(std::string id)
 	m_curr_id = id;
 }
 
+std::string IMAF::Scale::Scaler::GetCurrentID() const
+{
+	return m_curr_id;
+}
+
+bool IMAF::Scale::Scaler::IsFreshWindow(std::string id) const
+{
+	if (id.empty() || m_windows.find(id) == m_windows.end())
+		return false;
+
+	return m_windows.at(id).second;
+}
+
 float IMAF::Scale::Scaler::GetWindowScale(std::string id) const
 {
 	if (id.empty() || m_windows.find(id) == m_windows.end())
 		return m_main_window_scale;
 
-	return m_windows.at(id);
+	return m_windows.at(id).first;
 }
 
 float IMAF::Scale::Scaler::GetCurrentScale() const
@@ -132,7 +156,7 @@ float IMAF::Scale::Scaler::GetCurrentScale() const
 	if (m_curr_id.empty() || m_windows.find(m_curr_id) == m_windows.end())
 		return m_main_window_scale;
 
-	return m_windows.at(m_curr_id);
+	return m_windows.at(m_curr_id).first;
 }
 
 void IMAF::Scale::Scaler::Setup()
@@ -187,9 +211,17 @@ void IMAF::Scale::Scaler::UpdateWindowScales()
 	for (const auto& window : ctx->Windows)
 	{
 		if (!window->ViewportOwned)
-			m_windows[std::string(window->Name)] = m_main_window_scale;
+		{
+			bool fresh = m_windows[std::string(window->Name)].first != m_main_window_scale;
+			m_windows[std::string(window->Name)].first = m_main_window_scale;
+			m_windows[std::string(window->Name)].second = fresh;
+		}
 		else
-			m_windows[std::string(window->Name)] = m_monitors[window->Viewport->PlatformMonitor];
+		{
+			bool fresh = m_windows[std::string(window->Name)].first != m_monitors[window->Viewport->PlatformMonitor];
+			m_windows[std::string(window->Name)].first = m_monitors[window->Viewport->PlatformMonitor];
+			m_windows[std::string(window->Name)].second = fresh;
+		}
 	}
 }
 

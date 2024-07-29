@@ -30,6 +30,9 @@ namespace IMAF
 			void Shutdown() { shutdown = true; }
 
 			void SetCurrentID(std::string id);
+			std::string GetCurrentID() const;
+
+			bool IsFreshWindow(std::string id) const;
 
 			float GetWindowScale(std::string id) const;
 			float GetCurrentScale() const;
@@ -43,7 +46,7 @@ namespace IMAF
 
 		private:
 			std::atomic<float> m_main_window_scale = 1.0f;
-			std::unordered_map<std::string, float> m_windows;
+			std::unordered_map<std::string, std::pair<float,bool>> m_windows;
 			std::unordered_map<short, float> m_monitors;
 			bool shutdown = false;
 			std::string m_curr_id;

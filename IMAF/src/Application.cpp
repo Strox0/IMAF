@@ -577,7 +577,10 @@ namespace IMAF
 		if (x != m_dpi_scale)
 		{
 			if (mp_scaler)
+			{
 				mp_scaler->SetMainWindowScale((x < y ? x : y));
+				mp_scaler->UpdateWindowScales();
+			}
 
 			float style_scale = x / m_dpi_scale;
 			m_dpi_scale = x;
@@ -852,11 +855,21 @@ namespace IMAF
 
 		ImGui::PushFont(g_app->m_fonts.at(g_app->mp_scaler->GetWindowScale(name))[FONT_NORMAL]);
 
-		float style_scale = g_app->mp_scaler->GetWindowScale(name) / g_app->m_dpi_scale;
+		g_app->m_detached_window_scale = g_app->mp_scaler->GetWindowScale(name) / g_app->m_dpi_scale;
+		
+		if (g_app->m_detached_window_scale != 1.f)
+			ImGui::GetStyle().ScaleAllSizes(g_app->m_detached_window_scale);
 
-		//ImGui::GetStyle().ScaleAllSizes(style_scale);
+		bool ret = ImGui::Begin(name, p_open, flags);
+		
+		if (g_app->mp_scaler->IsFreshWindow(name))
+		{
+			ImVec2 current_size = ImGui::GetWindowSize();
+			ImVec2 new_size = { current_size.x - 1, current_size.y - 1 };
+			ImGui::SetWindowSize(new_size);
+		}
 
-		return ImGui::Begin(name, p_open, flags);
+		return ret;
 	}
 
 	ImFont* GetFont(int type)
@@ -877,13 +890,15 @@ namespace IMAF
 
 		ImGui::PopFont();
 
-		float window_scale = g_app->mp_scaler->GetCurrentScale();
-
 		g_app->mp_scaler->SetCurrentID(std::string());
 
 		ImGui::End();
 
-		//ImGui::GetStyle().ScaleAllSizes(1.f / window_scale);
+		if (g_app->m_detached_window_scale != 1.f)
+		{
+			ImGui::GetStyle().ScaleAllSizes(1.f / g_app->m_detached_window_scale);
+			g_app->m_detached_window_scale = 1.f;
+		}
 	}
 
 	void Application::SetPrurpleDarkColorTheme()

@@ -21,13 +21,12 @@ public:
 		IMAF::Begin("Something");
 		
 		ImGui::PushFont(IMAF::GetFont(FONT_EXTRABOLD_NORMAL));
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,IMAF::Val(20,20));
 		ImGui::Button("Click me", { IMAF::Val(200.f,100.f) });
 		ImGui::PopFont();
 		ImGui::PushFont(IMAF::GetFont(FONT_LARGE_ICON));
 		ImGui::Button(ICON_FA_THUMBS_UP, { IMAF::Val(200.f,100.f) });
 		ImGui::PopFont();
-		ImGui::PopStyleVar();
+
 		IMAF::End();
 
 		ImGui::ShowDemoWindow();
@@ -56,8 +55,8 @@ int WINAPI wWinMain(HINSTANCE hInstance,HINSTANCE prevhInstance,PWSTR pCmdLine,i
 	props.imgui_docking = true;
 	props.gen_ini = false;
 	props.dpi_aware = true;
-	props.width.relative = 0.75f;
-	props.height.relative = 0.6f;
+	props.width.relative = 0.55f;
+	props.height.relative = 0.5f;
 	props.relative_size = true;
 	props.custom_titlebar = true;
 

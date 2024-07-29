@@ -278,6 +278,7 @@ namespace IMAF
 
 		ScreenRect m_screen_rect;
 		float m_dpi_scale = 1.0f;
+		float m_detached_window_scale = 1.0f;
 
 		std::unordered_map<float,std::vector<ImFont*>> m_fonts;
 	};
