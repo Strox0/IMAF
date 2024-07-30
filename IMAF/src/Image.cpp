@@ -46,7 +46,7 @@ ImVec2 IMAF::Image::GetSize() const
 	return ImVec2(m_width,m_height);
 }
 
-const unsigned char* IMAF::Image::GetRawData() const
+unsigned char* IMAF::Image::GetRawData() const
 {
 	return m_data;
 }

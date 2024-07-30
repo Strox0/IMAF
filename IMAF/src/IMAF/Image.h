@@ -18,7 +18,7 @@ namespace IMAF
 
 		ImVec2 GetSize() const;
 
-		const unsigned char* GetRawData() const;
+		unsigned char* GetRawData() const;
 		bool Error() const;
 
 		void DisplayImGuiImage(const ImVec2& img_size = ImVec2(0,0), const ImVec2& start_point = ImVec2(0, 0), const ImVec2& end_point = ImVec2(-1, -1));
