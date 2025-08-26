@@ -116,6 +116,8 @@ IMAF::Image::~Image()
 {
 	if (m_data != nullptr)
 		stbi_image_free(m_data);
+	if (m_texture_data != 0)
+		glDeleteTextures(1, &m_texture_data);
 }
 
 bool IMAF::Image::LoadImage()
