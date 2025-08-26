@@ -531,6 +531,7 @@ namespace IMAF
 				chain->height = m_props.custom_titlebar_props.button_groups[i].buttons[j].height;
 				chain->width = m_props.custom_titlebar_props.button_groups[i].buttons[j].width;
 				chain->buttonType = m_props.custom_titlebar_props.button_groups[i].buttons[j].type;
+				chain->topOffset = m_props.custom_titlebar_props.button_groups[i].buttons[j].top_offset;
 				
 				if (j + 1 != m_props.custom_titlebar_props.button_groups[i].buttons.size())
 				{
@@ -542,6 +543,7 @@ namespace IMAF
 			glfwCustomTitlebarSetGroupAlignment(mp_window, i, m_props.custom_titlebar_props.button_groups[i].align);
 			glfwCustomTitlebarSetGroupOffset(mp_window, i, m_props.custom_titlebar_props.button_groups[i].edge_offset);
 			glfwCustomTitlebarSetGroupSpacing(mp_window, i, m_props.custom_titlebar_props.button_groups[i].inner_spacing);
+			glfwCustomTitlebarRemoveButtons(mp_window, i);
 			glfwCustomTitlebarAddButtons(mp_window, i, start);
 		}
 	}
