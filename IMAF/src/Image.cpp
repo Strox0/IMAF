@@ -10,7 +10,7 @@
 static const char* s_supportedExtensions = ".png.jpg.jpeg.bmp.tga.gif.psd.hdr.pic";
 
 IMAF::Image::Image(const char* path) :
-	m_error(false), m_path(path), m_data(nullptr), m_width(0), m_height(0), m_from_buffer(false), m_texture_data(0)
+	m_error(false), m_path(path), m_data(nullptr), m_width(0), m_height(0), m_from_buffer(false), m_texture_data(0), m_tint(IM_COL32_WHITE), m_start_pos(0,0)
 {
 	if (!std::filesystem::exists(path) || !std::filesystem::is_regular_file(path))
 	{
@@ -29,7 +29,7 @@ IMAF::Image::Image(const char* path) :
 }
 
 IMAF::Image::Image(const unsigned char* buffer, size_t size) :
-	m_error(false), m_data(nullptr), m_width(0), m_height(0), m_from_buffer(true), m_buffer(buffer), m_buffer_size(size), m_texture_data(0)
+	m_error(false), m_data(nullptr), m_width(0), m_height(0), m_from_buffer(true), m_buffer(buffer), m_buffer_size(size), m_texture_data(0), m_tint(IM_COL32_WHITE), m_start_pos(0, 0)
 {
 	if (buffer == nullptr || size == 0)
 	{
@@ -56,7 +56,17 @@ bool IMAF::Image::Error() const
 	return m_error;
 }
 
-void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_point, const ImVec2& end_point)
+void IMAF::Image::SetImagePosition(const ImVec2& start_pos)
+{
+	m_start_pos = start_pos;
+}
+
+void IMAF::Image::SetImageTint(ImU32 tint_color)
+{
+	m_tint = tint_color;
+}
+
+void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_point, const ImVec2& end_point, bool use_position)
 {
 	if (m_error)
 	{
@@ -93,8 +103,28 @@ void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_
 	float x_factor = img_size.x == 0 ? 1 : img_size.x / m_width;
 	float y_factor = img_size.y == 0 ? 1 : img_size.y / m_height;
 
+	ImVec2 end_pos{ 0,0 };
+	if (use_position)
+	{
+		if (img_size.x > 0 && img_size.y > 0)
+		{
+			end_pos.x = m_start_pos.x + img_size.x;
+			end_pos.y = m_start_pos.y + img_size.y;
+		}
+		else
+		{
+			end_pos.x = m_start_pos.x + m_width;
+			end_pos.y = m_start_pos.y + m_height;
+		}
+	}
+
 	if (start_point.x == 0 && start_point.y == 0 && end_point.x == -1 && end_point.y == -1)
-		ImGui::Image((void*)(intptr_t)m_texture_data, ImVec2(m_width * x_factor, m_height * y_factor));
+	{
+		if (!use_position)
+			ImGui::Image((void*)(intptr_t)m_texture_data, ImVec2(m_width * x_factor, m_height * y_factor), ImVec2(0,0), ImVec2(1,1), ImGui::ColorConvertU32ToFloat4(m_tint));
+		else
+			ImGui::GetWindowDrawList()->AddImage((void*)(intptr_t)m_texture_data, m_start_pos, end_pos, ImVec2(0, 0), ImVec2(1, 1), m_tint);
+	}
 	else
 	{
 		if (start_point.x < 0 || start_point.x > m_width || start_point.y < 0 || start_point.y > m_height || end_point.x < 0 || end_point.x > m_width || end_point.y < 0 || end_point.y > m_height)
@@ -108,7 +138,10 @@ void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_
 		ImVec2 uv0 = ImVec2(start_point.x == 0 ? 0 : start_point.x / m_width, start_point.y == 0 ? 0 : start_point.y / m_height);
 		ImVec2 uv1 = ImVec2(end_point.x == 0 ? 0 : end_point.x / m_width, end_point.y == 0 ? 0 : end_point.y / m_height);
 
-		ImGui::Image((void*)(intptr_t)m_texture_data, ImVec2(m_width * x_factor, m_height * y_factor), uv0, uv1);
+		if (!use_position)
+			ImGui::Image((void*)(intptr_t)m_texture_data, ImVec2(m_width * x_factor, m_height * y_factor), uv0, uv1, ImGui::ColorConvertU32ToFloat4(m_tint));
+		else
+			ImGui::GetWindowDrawList()->AddImage((void*)(intptr_t)m_texture_data, m_start_pos, end_pos, uv0, uv1, m_tint);
 	}
 }
 

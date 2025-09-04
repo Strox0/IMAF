@@ -12,7 +12,10 @@
 class ExampleLayer : public IMAF::Panel
 {
 public:
-	ExampleLayer() : m_image("test.jpg") {}
+	ExampleLayer() : m_image("test.jpg") 
+	{
+		m_image.SetImageTint(IM_COL32(255, 0, 0, 255));
+	}
 
 	void UiRender() override
 	{
@@ -36,7 +39,7 @@ public:
 
 		IMAF::End();
 
-		ImGui::ShowDemoWindow();
+		//ImGui::ShowDemoWindow();
 	}
 
 private:

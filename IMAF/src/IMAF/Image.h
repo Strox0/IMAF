@@ -21,7 +21,9 @@ namespace IMAF
 		unsigned char* GetRawData() const;
 		bool Error() const;
 
-		void DisplayImGuiImage(const ImVec2& img_size = ImVec2(0,0), const ImVec2& start_point = ImVec2(0, 0), const ImVec2& end_point = ImVec2(-1, -1));
+		void SetImagePosition(const ImVec2& start_pos);
+		void SetImageTint(ImU32 tint_color);
+		void DisplayImGuiImage(const ImVec2& img_size = ImVec2(0,0), const ImVec2& interimage_start = ImVec2(0, 0), const ImVec2& interimage_end = ImVec2(-1, -1), bool use_position = false);
 
 		~Image();
 
@@ -44,6 +46,8 @@ namespace IMAF
 		unsigned int m_texture_data;
 		int m_width;
 		int m_height;
+		ImU32 m_tint;
+		ImVec2 m_start_pos;
 	};
 
 	void DisplayImGuiImage(Image& image, const ImVec2& img_size = ImVec2(0, 0), const ImVec2& start_point = ImVec2(0, 0), const ImVec2& end_point = ImVec2(-1, -1));
