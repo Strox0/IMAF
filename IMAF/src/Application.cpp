@@ -43,6 +43,12 @@ namespace IMAF
 			Scale::InitScaler();
 			mp_scaler = Scale::GetScaler();
 		}
+
+		if (m_props.popup)
+		{
+			m_props.custom_titlebar = false;
+			m_props.resizeable = false;
+		}
 	}
 
 	bool Application::Init()
@@ -104,6 +110,16 @@ namespace IMAF
 				glfwWindowHint(GLFW_CT_TOP_BORDER, GLFW_CT_TOP_DEFAULT_BORDER);
 				break;
 			}
+		}
+
+		if (m_props.popup)
+		{
+			glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+		}
+
+		if (m_props.transparency != 1.f)
+		{
+			glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
 		}
 
 		return true;
@@ -168,9 +184,6 @@ namespace IMAF
 			glfwSetWindowSizeLimits(mp_window, m_props.min_width, m_props.min_height, GLFW_DONT_CARE, GLFW_DONT_CARE);
 		}
 
-		if (m_props.maximized)
-			glfwMaximizeWindow(mp_window);
-
 		if (m_props.center_window && !m_props.fullscreen)
 		{
 			int w = std::abs(m_screen_rect.right - m_screen_rect.left);
@@ -184,6 +197,9 @@ namespace IMAF
 
 			glfwSetWindowPos(mp_window, pos_x, pos_y);
 		}
+
+		if (m_props.maximized)
+			glfwMaximizeWindow(mp_window);
 
 		if (m_props.ini_file)
 			io.IniFilename = m_props.ini_file;
@@ -310,11 +326,11 @@ namespace IMAF
 		{
 			BeginRender();
 
-			if (m_props.custom_titlebar)
-				m_props.custom_titlebar_props.titlebar_draw_f(&m_props,mp_window);
-
 			if (m_props.imgui_docking)
 				BeginRenderDockspace();
+
+			if (m_props.custom_titlebar)
+				m_props.custom_titlebar_props.titlebar_draw_f(&m_props, mp_window);
 
 			m_panels_mutex.lock();
 			std::vector<std::shared_ptr<Panel>> panels_copy = m_panels;
@@ -375,7 +391,7 @@ namespace IMAF
 
 	void Application::EndRender()
 	{
-		constexpr ImVec4 clear_color = RGB2_IMVEC4(255, 255, 255);
+		const ImVec4 clear_color = RGBA2_IMVEC4(255, 255, 255, m_props.transparency);
 
 		ImGui::Render();
 
@@ -472,7 +488,8 @@ namespace IMAF
 
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0.f,0.f });
 		
-		ImGui::PushStyleColor(ImGuiCol_::ImGuiCol_WindowBg, ImVec4(0.09f, 0.09f, 0.10f, 1.00f));
+		ImGui::PushStyleColor(ImGuiCol_DockingEmptyBg, ImVec4(1.f, 1.f, 1.f, 0.f));
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, m_props.dockspace_color);
 
 		IMAF::Begin("DockingWindow", nullptr, flags);
 
@@ -482,7 +499,7 @@ namespace IMAF
 		ImGui::DockSpace(m_dockspace_id);
 
 		ImGui::PopStyleVar(2);
-		ImGui::PopStyleColor();
+		ImGui::PopStyleColor(2);
 	}
 
 	void Application::UpdateGLFWTitlebarRects()

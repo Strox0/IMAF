@@ -162,13 +162,18 @@ namespace IMAF
 		IconFont font_icon = IconFont::FontAwesome6_Solid;
 		float icon_size = 0.f;
 
+		float transparency = 1.f;
+
+		bool popup = false;
 		bool dpi_aware = true;
 		bool resizeable = true;
 		bool fullscreen = false;
 		bool maximized = false;
-		bool imgui_docking = false;
 		bool center_window = true;
 		bool gen_ini = false;
+
+		bool imgui_docking = false;
+		ImVec4 dockspace_color = ImVec4(0.09f, 0.09f, 0.10f, 1.00f);
 
 		Titlebar_Properties custom_titlebar_props;
 		bool custom_titlebar = false;

@@ -19,6 +19,8 @@ public:
 
 	void UiRender() override
 	{
+		//ImGui::ShowDemoWindow();
+		
 		IMAF::Begin("Hello");
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 		ImGui::Text("Icons : " ICON_FA_ANCHOR ICON_FA_BANDAGE ICON_FA_HOTEL ICON_FA_HAMMER ICON_FA_KEY ICON_FA_CHECK ICON_FA_USER);
@@ -38,8 +40,6 @@ public:
 		ImGui::PopFont();
 
 		IMAF::End();
-
-		//ImGui::ShowDemoWindow();
 	}
 
 private:
@@ -66,12 +66,13 @@ int WINAPI wWinMain(HINSTANCE hInstance,HINSTANCE prevhInstance,PWSTR pCmdLine,i
 	IMAF::AppProperties props;
 	props.resizeable = true;
 	props.imgui_docking = true;
-	props.gen_ini = false;
 	props.dpi_aware = true;
 	props.width.relative = 0.55f;
 	props.height.relative = 0.5f;
 	props.relative_size = true;
 	props.custom_titlebar = true;
+	props.transparency = 0.f;
+	props.dockspace_color = RGBA2_IMVEC4(28, 28, 28, 0.5f);
 
 	props.custom_titlebar_props.top_border = IMAF::TopBorder::Thin;
 
