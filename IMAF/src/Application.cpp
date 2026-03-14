@@ -49,6 +49,8 @@ namespace IMAF
 			m_props.custom_titlebar = false;
 			m_props.resizeable = false;
 		}
+
+		m_props.transparency = std::clamp(m_props.transparency, 0.f, 1.f);
 	}
 
 	bool Application::Init()
