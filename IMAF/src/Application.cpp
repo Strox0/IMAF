@@ -326,6 +326,14 @@ namespace IMAF
 
 		while (!glfwWindowShouldClose(mp_window) && !m_should_exit)
 		{
+			glfwPollEvents();
+
+			if (m_hidden.load())
+			{
+				Sleep(100);
+				continue;
+			}
+
 			BeginRender();
 
 			if (m_props.imgui_docking)
@@ -383,8 +391,6 @@ namespace IMAF
 
 	void Application::BeginRender()
 	{
-		glfwPollEvents();
-
 		// Start the Dear ImGui frame
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
@@ -564,6 +570,21 @@ namespace IMAF
 			glfwCustomTitlebarSetGroupSpacing(mp_window, i, m_props.custom_titlebar_props.button_groups[i].inner_spacing);
 			glfwCustomTitlebarRemoveButtons(mp_window, i);
 			glfwCustomTitlebarAddButtons(mp_window, i, start);
+		}
+	}
+
+	void IMAF::Application::ChangeWindowVisibility(bool visible)
+	{
+		visible = !visible;
+		if (visible && !m_hidden.load())
+		{
+			m_hidden.store(visible);
+			glfwHideWindow(mp_window);
+		}
+		else if (!visible && m_hidden.load())
+		{ 
+			m_hidden.store(visible); 
+			glfwShowWindow(mp_window);
 		}
 	}
 

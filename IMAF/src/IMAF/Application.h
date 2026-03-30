@@ -202,6 +202,8 @@ namespace IMAF
 		void AddPanel(std::shared_ptr<Panel> panel);
 		void RemovePanel(uint64_t id);
 
+		void ChangeWindowVisibility(bool visible);
+
 		GLFWwindow* GetWindowHandle() const;
 
 		//No need for Begin/End just DockBuilderCode
@@ -272,6 +274,7 @@ namespace IMAF
 		ImGuiID m_dockspace_id = 0;
 
 		bool m_should_exit = false;
+		std::atomic_bool m_hidden = false;
 
 		std::mutex m_panels_mutex;
 		std::vector<std::shared_ptr<Panel>> m_panels;
