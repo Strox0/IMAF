@@ -29,6 +29,17 @@ namespace IMAF
 {
 	Application::Application(const AppProperties& props) : m_props(props) 
 	{
+		if (m_props.borderless_fullscreen)
+			m_props.popup = true;
+
+		if (m_props.popup)
+		{
+			m_props.custom_titlebar = false;
+			m_props.resizeable = false;
+		}
+
+		m_props.transparency = std::clamp(m_props.transparency, 0.f, 1.f);
+
 		if (!Init())
 		{
 			MessageBoxA(NULL, "Application Initalization Failed", "Fatal Error", MB_OK | MB_ICONERROR);
@@ -43,14 +54,6 @@ namespace IMAF
 			Scale::InitScaler();
 			mp_scaler = Scale::GetScaler();
 		}
-
-		if (m_props.popup)
-		{
-			m_props.custom_titlebar = false;
-			m_props.resizeable = false;
-		}
-
-		m_props.transparency = std::clamp(m_props.transparency, 0.f, 1.f);
 	}
 
 	bool Application::Init()
@@ -73,6 +76,11 @@ namespace IMAF
 			glfwWindowHint(GLFW_RESIZABLE, true);
 		else
 			glfwWindowHint(GLFW_RESIZABLE, false);
+
+		if (m_props.borderless_fullscreen)
+		{
+			glfwWindowHint(GLFW_FLOATING, true);
+		}
 
 		if (m_props.relative_size)
 		{
@@ -290,6 +298,12 @@ namespace IMAF
 		if (m_props.dpi_aware && !m_props.relative_size)
 		{
 			glfwSetWindowSize(mp_window, m_props.width.abosulte * xscale, m_props.height.abosulte * yscale);
+		}
+
+		if (m_props.borderless_fullscreen)
+		{
+			glfwSetWindowSize(mp_window, platform_io.Monitors[0].MainSize.x-1, platform_io.Monitors[0].MainSize.y);
+			glfwSetWindowPos(mp_window, 0, 0);
 		}
 
 		glfwShowWindow(mp_window);

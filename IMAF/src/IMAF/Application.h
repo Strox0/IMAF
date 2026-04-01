@@ -169,6 +169,7 @@ namespace IMAF
 		bool resizeable = true;
 		bool fullscreen = false;
 		bool maximized = false;
+		bool borderless_fullscreen = false;
 		bool center_window = true;
 		bool gen_ini = false;
 
