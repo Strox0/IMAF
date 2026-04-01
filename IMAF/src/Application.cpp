@@ -12,6 +12,7 @@
 #include "GLFW/glfw3native.h"
 
 #include "IMAF/fonts.h"
+#include "IMAF/Image.h"
 
 #include <string>
 
@@ -162,6 +163,29 @@ namespace IMAF
 			glfwSetWindowContentScaleCallback(mp_window, __DPICallBack);
 		}
 
+		if (!m_props.icons.empty())
+		{
+			std::vector<GLFWimage> loaded_icons;
+			std::vector<std::unique_ptr<IMAF::Image>> images;
+			for (const auto& img_p : m_props.icons)
+			{
+				images.emplace_back(std::make_unique<IMAF::Image>(img_p.c_str()));
+				IMAF::Image& img = *images.back();
+				if (img.Error())
+					continue;
+				GLFWimage glfwimg;
+				glfwimg.pixels = img.GetRawData();
+				ImVec2 img_size = img.GetSize();
+				glfwimg.height = img_size.y;
+				glfwimg.width = img_size.x;
+				loaded_icons.emplace_back(glfwimg);
+			}
+			if (!loaded_icons.empty())
+			{
+				glfwSetWindowIcon(mp_window, loaded_icons.size(), loaded_icons.data());
+			}
+		}
+
 		m_screen_rect = GetMainApplicationScreen();
 		SizeRect size_calc_screen(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
 
@@ -245,8 +269,8 @@ namespace IMAF
 
 		ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
 
-		if (m_props.icon_size == 0.f)
-			m_props.icon_size = m_props.font_size * 2;
+		if (m_props.font_icon_size == 0.f)
+			m_props.font_icon_size = m_props.font_size * 2;
 
 		for (const auto& i : platform_io.Monitors)
 		{
@@ -270,9 +294,9 @@ namespace IMAF
 			fontConfig.MergeMode = false;
 
 			if (m_props.font_icon == IconFont::FontAwesome6_Regluar)
-				fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_IconsRegular[0], sizeof(g_IconsRegular), std::floorf(m_props.icon_size * i.DpiScale), &fontConfig, icon_ranges));
+				fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_IconsRegular[0], sizeof(g_IconsRegular), std::floorf(m_props.font_icon_size * i.DpiScale), &fontConfig, icon_ranges));
 			else if (m_props.font_icon == IconFont::FontAwesome6_Solid)
-				fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_IconsSolid[0], sizeof(g_IconsSolid), std::floorf(m_props.icon_size * i.DpiScale), &fontConfig, icon_ranges));
+				fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_IconsSolid[0], sizeof(g_IconsSolid), std::floorf(m_props.font_icon_size * i.DpiScale), &fontConfig, icon_ranges));
 
 			fontConfig.PixelSnapH = false;
 			fontConfig.GlyphMinAdvanceX = 0;

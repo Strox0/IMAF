@@ -73,6 +73,10 @@ int WINAPI wWinMain(HINSTANCE hInstance,HINSTANCE prevhInstance,PWSTR pCmdLine,i
 	props.custom_titlebar = true;
 	props.transparency = 0.f;
 	props.dockspace_color = RGBA2_IMVEC4(28, 28, 28, 0.5f);
+	
+	props.icons.push_back("./account_circle_16dp_E3E3E3.png");
+	props.icons.push_back("./account_circle_32dp_E3E3E3.png");
+	props.icons.push_back("./account_circle_48dp_E3E3E3.png");
 
 	props.custom_titlebar_props.top_border = IMAF::TopBorder::Thin;
 

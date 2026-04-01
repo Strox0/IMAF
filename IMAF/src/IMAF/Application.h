@@ -160,7 +160,7 @@ namespace IMAF
 		
 		float font_size = 18;
 		IconFont font_icon = IconFont::FontAwesome6_Solid;
-		float icon_size = 0.f;
+		float font_icon_size = 0.f;
 
 		float transparency = 1.f;
 
@@ -178,6 +178,8 @@ namespace IMAF
 
 		Titlebar_Properties custom_titlebar_props;
 		bool custom_titlebar = false;
+
+		std::vector<std::string> icons;
 
 		AppProperties() : name("My Application") {};
 	};
