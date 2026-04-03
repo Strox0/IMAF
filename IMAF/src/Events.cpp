@@ -6,6 +6,11 @@ void IMAF::Events::Dispatch(const Event& event)
 	IMAF::Events::EventHandler::Get().Dispatch(event);
 }
 
+void IMAF::Events::Dispatch(EventID event_id, std::any data)
+{
+	Dispatch(IMAF::Events::Event{ event_id,data });
+}
+
 IMAF::Events::EventSubID IMAF::Events::Subscribe(EventID event_id, EventCallback callback)
 {
 	return IMAF::Events::EventHandler::Get().Subscribe(event_id, callback);
@@ -14,9 +19,4 @@ IMAF::Events::EventSubID IMAF::Events::Subscribe(EventID event_id, EventCallback
 void IMAF::Events::Unsubscribe(EventSubID sub_id)
 {
 	IMAF::Events::EventHandler::Get().Unsubscribe(sub_id);
-}
-
-void IMAF::Events::RegisterEvent(EventID event_id)
-{
-	IMAF::Events::EventHandler::Get().RegisterEvent(event_id);
 }

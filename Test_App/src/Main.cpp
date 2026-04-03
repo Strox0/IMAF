@@ -61,7 +61,7 @@ void dock_setup(ImGuiID dockspace_id,bool& firstrun)
 	firstrun = false;
 }
 
-int WINAPI wWinMain(HINSTANCE hInstance,HINSTANCE prevhInstance,PWSTR pCmdLine,int cmdShow)
+int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ PWSTR pCmdLine, _In_ int nCmdShow)
 {
 	IMAF::AppProperties props;
 	props.resizeable = true;
