@@ -82,7 +82,7 @@ int WINAPI wWinMain(HINSTANCE hInstance,HINSTANCE prevhInstance,PWSTR pCmdLine,i
 
 	IMAF::Application* app = new IMAF::Application(props);
 
-	app->SetUp([&app](const IMAF::AppProperties& props, GLFWwindow* window) 
+	app->SetUp([&app](const IMAF::AppProperties& props, GLFWwindow* window)
 		{
 			IMAF::Titlebar_Properties titlebar_props = props.custom_titlebar_props;
 			titlebar_props.height = IMAF::Val(40);

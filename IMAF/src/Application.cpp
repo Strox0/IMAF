@@ -13,6 +13,7 @@
 
 #include "IMAF/fonts.h"
 #include "IMAF/Image.h"
+#include "IMAF/EventHandler.h"
 
 #include <string>
 
@@ -55,6 +56,11 @@ namespace IMAF
 			Scale::InitScaler();
 			mp_scaler = Scale::GetScaler();
 		}
+	}
+
+	Application::~Application()
+	{
+		IMAF::Events::EventHandler::Get().End();
 	}
 
 	bool Application::Init()

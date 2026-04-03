@@ -188,6 +188,7 @@ namespace IMAF
 	{
 	public:
 		explicit Application(const AppProperties& props = AppProperties());
+		~Application();
 
 		//Will run once before the window rendering but after the backend initalization
 		void SetUp(std::function<void(const AppProperties&, GLFWwindow*)> func);
