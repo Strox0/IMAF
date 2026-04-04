@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <any>
 #include <functional>
-#include <string_view>
+#include <expected>
 
 namespace IMAF
 {
@@ -44,5 +44,23 @@ namespace IMAF
 		EventSubID Subscribe(EventID event_id, EventCallback callback);
 
 		void Unsubscribe(EventSubID sub_id);
+		
+		enum DataError
+		{
+			IncorrectID,
+			IncorrectType
+		};
+
+		template<typename T>
+		std::expected<T,bool> GetEventData(const Event& data, EventID expected)
+		{
+			if (data.event_id != expected)
+				return std::unexpected(DataError::IncorrectID);
+
+			if (data.data.type() != typeid(T))
+				return std::unexpected(DataError::IncorrectType);
+
+			return std::any_cast<T>(data.data);
+		}
 	}
 }
