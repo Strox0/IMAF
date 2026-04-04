@@ -1,7 +1,7 @@
 project "Test_App"
 	kind "WindowedApp"
 	language "C++"
-	cppdialect "C++20"
+	cppdialect "C++23"
 	staticruntime "off"
 
 	targetdir ("bin/" .. outputdir .. "/")
