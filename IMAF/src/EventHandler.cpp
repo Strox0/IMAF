@@ -17,8 +17,7 @@ IMAF::Events::EventHandler::EventHandler() : m_t(&IMAF::Events::EventHandler::Ru
 
 IMAF::Events::EventHandler::~EventHandler()
 {
-	m_end = true;
-	m_t.join();
+	End();
 }
 
 void IMAF::Events::EventHandler::Dispatch(const Event& event)
@@ -49,9 +48,8 @@ IMAF::Events::EventSubID IMAF::Events::EventHandler::Subscribe(EventID event_id,
 	{
 		m_events_map.emplace(event_id, std::vector<_EventPair>());
 	}
-
-	auto it = std::lower_bound(m_events_map[event_id].begin(), m_events_map[event_id].end(), _EventPair(nullptr,id), pair_pred{});
-	m_events_map[event_id].insert(it, { callback, id });
+	
+	m_events_map[event_id].emplace_back(_EventPair(callback, id));
 
 	m_mutex_events.unlock();
 
@@ -70,23 +68,39 @@ void IMAF::Events::EventHandler::Unsubscribe(EventSubID sub_id)
 		m_mutex_events.unlock();
 		return;
 	}
-	
-	auto it = std::lower_bound(m_events_map[sub_id.event_id].begin(), m_events_map[sub_id.event_id].end(), _EventPair(nullptr,sub_id.sub_id), pair_pred{});
+
+	auto it = m_events_map[sub_id.event_id].begin();
+	while (it != m_events_map[sub_id.event_id].end())
+	{
+		if (it->sub_id != sub_id.sub_id)
+		{
+			it++;
+			continue;
+		}
+		
+		break;
+	}
 
 	if (it != m_events_map[sub_id.event_id].end() && it->sub_id == sub_id.sub_id)
+	{
 		m_events_map[sub_id.event_id].erase(it);
 
-	m_mutex_events.unlock();
+		m_mutex_events.unlock();
 
-	m_mutex_ids.lock();
-	m_ids.erase(sub_id.sub_id);
-	m_mutex_ids.unlock();
+		m_mutex_ids.lock();
+		m_ids.erase(sub_id.sub_id);
+		m_mutex_ids.unlock();
+	}
+	else
+		m_mutex_events.unlock();
 }
 
 void IMAF::Events::EventHandler::End()
 {
 	m_end = true;
 	m_cv.notify_all();
+	if (m_t.joinable())
+		m_t.join();
 }
 
 void IMAF::Events::EventHandler::Run()
@@ -101,16 +115,21 @@ void IMAF::Events::EventHandler::Run()
 			if (m_event_pool.empty())
 				continue;
 
+			m_mutex_events.lock();
 			event = std::move(m_event_pool.front());
 			m_event_pool.pop();
 		}
 
-		m_mutex_events.lock();
+		if (!m_events_map.contains(event.event_id))
+		{
+			m_mutex_events.unlock();
+			continue;
+		}
 		const std::vector<_EventPair> callbacks = m_events_map[event.event_id];
 		m_mutex_events.unlock();
-		for (const auto& [callback,id] : callbacks)
+		for (const auto& [cb,id] : callbacks)
 		{
-			if (callback(event) == Propagate::Stop)
+			if (cb(event) == Propagate::Stop)
 				break;
 		}
 	}

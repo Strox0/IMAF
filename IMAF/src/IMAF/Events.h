@@ -40,7 +40,7 @@ namespace IMAF
 		void Dispatch(const Event& event);
 		void Dispatch(EventID event_id, std::any data);
 
-		//Order non guaranteed
+		//Order is call order
 		EventSubID Subscribe(EventID event_id, EventCallback callback);
 
 		void Unsubscribe(EventSubID sub_id);
