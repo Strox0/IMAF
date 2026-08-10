@@ -4,10 +4,12 @@
 #include <Windows.h>
 
 #include "GLFW/glfw3.h"
+#include <imgui.h>
+#include <imgui_internal.h>
+#include <cassert>
+#include <string>
 
 IMAF::Scale::Scaler* g_scaler = nullptr;
-
-//BOOL monitorenumproc(HMONITOR unnamedParam1, HDC unnamedParam2, LPRECT unnamedParam3, LPARAM unnamedParam4);
 
 int IMAF::Scale::Val(int x)
 {
@@ -47,11 +49,14 @@ void IMAF::Scale::InitScaler()
 	}
 }
 
+// ISSUE 22: This library callback terminates the entire host process instead of propagating or reporting a recoverable failure.
+//window should never be a nullptr therefore it is a critical faliure
 void IMAF::Scale::NewWindowCallback(ImGuiViewport* viewport)
 {
 	assert(viewport != nullptr);
 	ImGuiContext* ctx = ImGui::GetCurrentContext();
-	
+	static size_t callt = 0;
+	callt++;
 	ImGuiWindow* window = nullptr;
 
 	for (int i = 0; i < ctx->Windows.Size; i++)
@@ -93,10 +98,11 @@ IMAF::Scale::Scaler* IMAF::Scale::GetScaler()
 	return g_scaler;
 }
 
+// ISSUE 1: Scaler setup runs on a detached thread that races ImGui/backend initialization and has no effective shutdown or owned lifetime.
+//FIXED
 IMAF::Scale::Scaler::Scaler() : m_main_window_scale(1.f)
 {
-	std::thread t(&Scaler::Setup, this);
-	t.detach();
+	Setup();
 }
 
 IMAF::Scale::Scaler::~Scaler()
@@ -161,11 +167,6 @@ float IMAF::Scale::Scaler::GetCurrentScale() const
 
 void IMAF::Scale::Scaler::Setup()
 {
-	while (ImGui::GetCurrentContext() == nullptr)
-	{
-		Sleep(10);
-	}
-
 	ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
 
 	for (int i = 0; i < platform_io.Monitors.size(); ++i)
@@ -177,31 +178,6 @@ void IMAF::Scale::Scaler::Setup()
 	}
 
 	platform_io.Platform_OnChangedViewport = IMAF::Scale::NewWindowCallback;
-
-	//std::vector<HMONITOR> monitors;
-	//EnumDisplayMonitors(NULL, NULL, monitorenumproc, (long long)&monitors);
-	//for (size_t i = 0; i < monitors.size(); i++) 
-	//{
-	//	MONITORINFO monitorInfo;
-	//	monitorInfo.cbSize = sizeof(MONITORINFO);
-
-	//	if (GetMonitorInfo(monitors[i], &monitorInfo)) 
-	//	{
-	//		for (int j = 0; j < platform_io.Monitors.size(); ++j) {
-	//			const ImGuiPlatformMonitor& imguiMonitor = platform_io.Monitors[j];
-
-	//			if (monitorInfo.rcMonitor.left == imguiMonitor.MainPos.x && monitorInfo.rcMonitor.top == imguiMonitor.MainPos.y) 
-	//			{
-	//				UINT dVal, dpiY;
-	//				HRESULT hr = GetDpiForMonitor(monitors[i], MDT_EFFECTIVE_DPI, &dVal, &dpiY);
-	//				if (SUCCEEDED(hr))
-	//				{
-	//					m_monitors[j] = dVal / 96.0f;
-	//				}
-	//			}
-	//		}
-	//	}
-	//}
 }
 
 void IMAF::Scale::Scaler::UpdateWindowScales()
@@ -224,10 +200,3 @@ void IMAF::Scale::Scaler::UpdateWindowScales()
 		}
 	}
 }
-
-//BOOL monitorenumproc(HMONITOR unnamedParam1, HDC unnamedParam2, LPRECT unnamedParam3, LPARAM unnamedParam4)
-//{
-//	std::vector<HMONITOR>* monitors = (std::vector<HMONITOR>*)unnamedParam4;
-//	monitors->push_back(unnamedParam1);
-//	return TRUE;
-//}

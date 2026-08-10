@@ -51,8 +51,10 @@ namespace IMAF
 			IncorrectType
 		};
 
+		// ISSUE 13: GetEventData declares bool as its error type but returns DataError values, collapsing the two error cases to false and true.
+		//FIXED
 		template<typename T>
-		std::expected<T,bool> GetEventData(const Event& data, EventID expected)
+		std::expected<T,DataError> GetEventData(const Event& data, EventID expected)
 		{
 			if (data.event_id != expected)
 				return std::unexpected(DataError::IncorrectID);

@@ -4,8 +4,6 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
-#include "imgui_internal.h"
-
 #include "GLES3/gl3.h"
 
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -16,12 +14,29 @@
 #include "IMAF/EventHandler.h"
 
 #include <string>
+#include "IMAF/IconsFontAwesome6.h"
+#include "IMAF/IconsFontAwesome6.h_fa-regular-400.ttf.h"
+#include "IMAF/IconsFontAwesome6.h_fa-solid-900.ttf.h"
+#include "IMAF/Panel.h"
+#include "IMAF/Scale.h"
+#include <GLFW/glfw3.h>
+#include <imgui.h>
+#include <gl/GL.h>
+#include <Windows.h>
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <vector>
 
 IMAF::Application* g_app = nullptr;
 
+// ISSUE 22: GLFW diagnostics are discarded and library initialization failures terminate the host process instead of returning structured errors.
 static void glfw_error_callback(int error, const char* description) {}
 
-void __DPICallBack(GLFWwindow* window, float xscale, float yscale)
+static void __DPICallBack(GLFWwindow* window, float xscale, float yscale)
 {
 	IMAF::Application* app = (IMAF::Application*)glfwGetWindowUserPointer(window);
 	app->__CallScaleCallback(xscale, yscale);
@@ -50,19 +65,19 @@ namespace IMAF
 		}
 
 		g_app = this;
-
-		if (m_props.dpi_aware)
-		{
-			Scale::InitScaler();
-			mp_scaler = Scale::GetScaler();
-		}
 	}
 
+	// ISSUE 6: Application destruction does not own complete, idempotent GLFW/ImGui/scaler/global teardown, so non-Run and exceptional paths leak state.
+	//FIXED
 	Application::~Application()
 	{
 		IMAF::Events::EventHandler::Get().End();
+		g_app = nullptr;
+		Shutdown(false);
 	}
 
+	// ISSUE 19: Relative-size validation rejects zero and values above one but accepts negative values that produce invalid window dimensions.
+	//FIXED
 	bool Application::Init()
 	{
 		glfwSetErrorCallback(glfw_error_callback);
@@ -91,10 +106,10 @@ namespace IMAF
 
 		if (m_props.relative_size)
 		{
-			if (m_props.width.relative == 0 || m_props.width.relative > 1)
+			if (m_props.width.relative <= 0 || m_props.width.relative > 1)
 				m_props.width.relative = 0.65f;
 
-			if (m_props.height.relative == 0 || m_props.height.relative > 1)
+			if (m_props.height.relative <= 0 || m_props.height.relative > 1)
 				m_props.height.relative = 0.75f;
 
 			int screen_width = GetSystemMetrics(SM_CXSCREEN);
@@ -162,12 +177,6 @@ namespace IMAF
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;       // Enable Keyboard Controls
 		//io.ConfigViewportsNoAutoMerge = true;
 		//io.ConfigViewportsNoTaskBarIcon = true;
-
-		if (m_props.dpi_aware)
-		{
-			glfwSetWindowSize(mp_window, m_props.width.abosulte, m_props.height.abosulte);
-			glfwSetWindowContentScaleCallback(mp_window, __DPICallBack);
-		}
 
 		if (!m_props.icons.empty())
 		{
@@ -316,15 +325,25 @@ namespace IMAF
 			m_fonts[i.DpiScale] = fonts;
 		}
 
+		if (m_props.dpi_aware)
+		{
+			Scale::InitScaler();
+			mp_scaler = Scale::GetScaler();
+			glfwSetWindowSize(mp_window, m_props.width.abosulte, m_props.height.abosulte);
+			glfwSetWindowContentScaleCallback(mp_window, __DPICallBack);
+		}
+
+		// ISSUE 7: Font selection assumes an exact floating-point DPI key and indexes an inserted empty vector when that key is absent.
+		//FIXED
 		float xscale, yscale;
 		glfwGetWindowContentScale(mp_window, &xscale, &yscale);
-		io.FontDefault = m_fonts[xscale][0];
+		io.FontDefault = m_fonts.at(xscale)[0];
 		style.ScaleAllSizes(xscale);
 		m_dpi_scale = xscale;
 
 		if (mp_scaler)
 			mp_scaler->SetMainWindowScale((xscale < yscale ? xscale : yscale));
-		
+
 		if (m_props.dpi_aware && !m_props.relative_size)
 		{
 			glfwSetWindowSize(mp_window, m_props.width.abosulte * xscale, m_props.height.abosulte * yscale);
@@ -341,13 +360,14 @@ namespace IMAF
 		return true;
 	}
 
+	// ISSUE 5: Panel locking also uses manual lock/unlock around throwing shared_ptr/vector operations and can strand the mutex.
+	//FIXED
 	void Application::AddPanel(std::shared_ptr<Panel> panel)
 	{
 		if (panel != nullptr)
 		{
-			m_panels_mutex.lock();
+			std::lock_guard m(m_panels_mutex);
 			m_panels.push_back(panel);
-			m_panels_mutex.unlock();
 		}
 	}
 
@@ -420,16 +440,20 @@ namespace IMAF
 		if (mp_scaler)
 			mp_scaler->Shutdown();
 
-		if (!failure)
+		if (!failure && !m_shutdown_called)
 		{
 			if (ImGui::GetIO().BackendRendererUserData != nullptr)
 				ImGui_ImplOpenGL3_Shutdown();
 			if (ImGui::GetIO().BackendPlatformUserData != nullptr)
 				ImGui_ImplGlfw_Shutdown();
-			ImGui::DestroyContext();
+			if (ImGui::GetCurrentContext() != nullptr)
+				ImGui::DestroyContext();
 
-			glfwDestroyWindow(mp_window);
+			if (mp_window != nullptr)
+				glfwDestroyWindow(mp_window);
 			glfwTerminate();
+
+			m_shutdown_called = true;
 		}
 	}
 
@@ -477,22 +501,35 @@ namespace IMAF
 			Sleep(5);
 	}
 
+	// ISSUE 25: SetDefaultProperties resets only part of AppProperties and uses relative dimensions inconsistent with Init's defaults.
+	//FIXED
 	void Application::SetDefaultProperties(AppProperties& props)
 	{
 		props.custom_titlebar = false;
 		props.font_size = 18;
 		props.fullscreen = false;
-		props.height.relative = 0.65;
-		props.width.relative = 0.75;
+		props.height.relative = 0.75;
+		props.width.relative = 0.65;
 		props.resizeable = true;
 		props.name = "My Application";
 		props.imgui_docking = false;
 		props.gen_ini = false;
 		props.center_window = true;
 		props.maximized = false;
-		props.dpi_aware = true;	
+		props.dpi_aware = true;
+		props.font_icon_size = 0.f;
+		props.font_icon = IconFont::FontAwesome6_Solid;
+		props.relative_size = true;
+		props.transparency = 1.f;
+		props.popup = false;
+		props.borderless_fullscreen = false;
+		props.min_height = 0;
+		props.min_width = 0;
+		props.dockspace_color = ImVec4(0.09f, 0.09f, 0.10f, 1.00f);
 	}
 
+	// ISSUE 15: This setter unconditionally calls native-window functions even though mp_window is null before Run creates the window.
+	//FIXED
 	void Application::SetTitlebarProperties(const Titlebar_Properties& props)
 	{
 		m_props.custom_titlebar_props = props;
@@ -503,9 +540,12 @@ namespace IMAF
 		if (m_props.custom_titlebar_props.titlebar_scaling_f == nullptr)
 			m_props.custom_titlebar_props.titlebar_scaling_f = DefCustomTitlebarScaling;
 
-		UpdateGLFWTitlebarRects();
+		if (mp_window != nullptr)
+			UpdateGLFWTitlebarRects();
 	}
 
+	// ISSUE 11: m_should_exit is a plain bool that can race when Exit is called from the background event thread.
+	//FIXED
 	void Application::Exit()
 	{
 		m_should_exit = true;
@@ -554,6 +594,8 @@ namespace IMAF
 		ImGui::PopStyleColor(2);
 	}
 
+	// ISSUE 14: Empty replacement lists skip native removal calls, leaving previously configured exclusions and button groups active.
+	//FIXED
 	void Application::UpdateGLFWTitlebarRects()
 	{
 		glfwSetCustomTitlebarHeight(mp_window, m_props.custom_titlebar_props.height);
@@ -579,14 +621,13 @@ namespace IMAF
 			chain->startOffset = i.start_offset;
 		}
 		
+		glfCustomTitlebarRemoveExclusions(mp_window);
 		if (start)
-		{
-			glfCustomTitlebarRemoveExclusions(mp_window);
 			glfwCustomTitlebarAddExclusion(mp_window, start);
-		}
 
 		for (int i = 0; i < 3; i++)
 		{
+			glfwCustomTitlebarRemoveButtons(mp_window, i);
 			if (m_props.custom_titlebar_props.button_groups[i].buttons.size() == 0)
 				continue;
 
@@ -612,7 +653,6 @@ namespace IMAF
 			glfwCustomTitlebarSetGroupAlignment(mp_window, i, m_props.custom_titlebar_props.button_groups[i].align);
 			glfwCustomTitlebarSetGroupOffset(mp_window, i, m_props.custom_titlebar_props.button_groups[i].edge_offset);
 			glfwCustomTitlebarSetGroupSpacing(mp_window, i, m_props.custom_titlebar_props.button_groups[i].inner_spacing);
-			glfwCustomTitlebarRemoveButtons(mp_window, i);
 			glfwCustomTitlebarAddButtons(mp_window, i, start);
 		}
 	}
@@ -688,6 +728,10 @@ namespace IMAF
 		return m_dockspace_id == 0 ? 0 : m_dockspace_id;
 	}
 
+	// ISSUE 8: The application name is passed directly as an ImGui printf-style format string, so percent conversions cause undefined behavior.
+	//FIXED
+	// ISSUE 26: Repeated titlebar buttons reuse identical ImGui labels and IDs, allowing their interaction state to collide.
+	//FIXED
 	void DefCustomTitlebarDrawMAC(const AppProperties* app_props, GLFWwindow* window)
 	{
 		int w, h;
@@ -736,6 +780,7 @@ namespace IMAF
 			}
 			}
 
+			size_t idincr = 0;
 			for (const auto& btn : props->button_groups[i].buttons)
 			{
 				ImVec2 button_pos;
@@ -744,6 +789,9 @@ namespace IMAF
 				button_pos.y = btn.top_offset;
 				button_size.x = btn.width;
 				button_size.y = btn.height;
+				
+				std::string btn_n = "##" + std::to_string(idincr);
+				idincr++;
 
 				switch (btn.type)
 				{
@@ -751,21 +799,21 @@ namespace IMAF
 					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(195, 65, 65, 255));
 					ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(175, 55, 55, 255));
 					ImGui::SetCursorPos(button_pos);
-					ImGui::Button("##X", button_size);
+					ImGui::Button(btn_n.c_str(), button_size);
 					ImGui::PopStyleColor(2);
 					break;
 				case IMAF::ButtonType::Minimize:
 					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(129, 227, 91, 255));
 					ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(106, 226, 59, 255));
 					ImGui::SetCursorPos(button_pos);
-					ImGui::Button("##_", button_size);
+					ImGui::Button(btn_n.c_str(), button_size);
 					ImGui::PopStyleColor(2);
 					break;
 				case IMAF::ButtonType::Maximize:
 					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(255, 196, 107, 255));
 					ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(255, 175, 52, 255));
 					ImGui::SetCursorPos(button_pos);
-					ImGui::Button("##O", button_size);
+					ImGui::Button(btn_n.c_str(), button_size);
 					ImGui::PopStyleColor(2);
 					break;
 				default:
@@ -784,7 +832,7 @@ namespace IMAF
 		text_pos.y = props->height / 2.f - ImGui::CalcTextSize(app_props->name).y / 2;
 
 		ImGui::SetCursorPos(text_pos);
-		ImGui::Text(app_props->name);
+		ImGui::TextUnformatted(app_props->name);
 
 		ImDrawList* DrawList = ImGui::GetWindowDrawList();
 		DrawList->AddLine({ (float)x,(float)(props->height - 2 + y) }, { (float)(w+x),(float)(props->height - 2 + y) }, IM_COL32(73,73,73,255), 3.0f);
@@ -797,6 +845,10 @@ namespace IMAF
 		ImGui::PopStyleColor();
 	}
 
+	// ISSUE 8: The application name is passed directly as an ImGui printf-style format string, so percent conversions cause undefined behavior.
+	//FIXED
+	// ISSUE 26: Repeated titlebar buttons reuse identical ImGui labels and IDs, allowing their interaction state to collide.
+	//FIXED
 	void DefCustomTitlebarDraw(const AppProperties* app_props, GLFWwindow* window)
 	{
 		int w, h;
@@ -846,6 +898,7 @@ namespace IMAF
 			}
 			}
 
+			size_t idincr = 0;
 			for (const auto& btn : props->button_groups[i].buttons)
 			{
 				ImVec2 button_pos;
@@ -858,19 +911,31 @@ namespace IMAF
 				switch (btn.type)
 				{
 				case IMAF::ButtonType::Close:
+				{
 					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, RGBA2_IMVEC4(195, 65, 65, 255));
 					ImGui::SetCursorPos(button_pos);
-					ImGui::Button("X", button_size);
+					std::string btn_n = "X##" + std::to_string(idincr);
+					idincr++;
+					ImGui::Button(btn_n.c_str(), button_size);
 					ImGui::PopStyleColor();
 					break;
+				}
 				case IMAF::ButtonType::Minimize:
+				{
 					ImGui::SetCursorPos(button_pos);
-					ImGui::Button("_", button_size);
+					std::string btn_n = "_##" + std::to_string(idincr);
+					idincr++;
+					ImGui::Button(btn_n.c_str(), button_size);
 					break;
+				}
 				case IMAF::ButtonType::Maximize:
+				{
 					ImGui::SetCursorPos(button_pos);
-					ImGui::Button("O", button_size);
+					std::string btn_n = "O##" + std::to_string(idincr);
+					idincr++;
+					ImGui::Button(btn_n.c_str(), button_size);
 					break;
+				}
 				default:
 					break;
 				}
@@ -887,7 +952,7 @@ namespace IMAF
 		text_pos.y = props->height / 2.f - ImGui::CalcTextSize(app_props->name).y / 2;
 
 		ImGui::SetCursorPos(text_pos);
-		ImGui::Text(app_props->name);
+		ImGui::TextUnformatted(app_props->name);
 
 		ImDrawList* DrawList = ImGui::GetWindowDrawList();
 		DrawList->AddLine({ (float)x,(float)(props->height - 2 + y) }, { (float)(w + x),(float)(props->height - 2 + y) }, IM_COL32(73, 73, 73, 255), 3.0f);
@@ -932,6 +997,8 @@ namespace IMAF
 		}
 	}
 
+	// ISSUE 7: Window rendering also performs exact scale-key lookup, so new or mismatched DPI values can throw instead of selecting a fallback font set.
+	//FIXED
 	bool Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
 	{
 		if (g_app->mp_scaler == nullptr)
@@ -939,7 +1006,10 @@ namespace IMAF
 
 		g_app->mp_scaler->SetCurrentID(name);
 
-		ImGui::PushFont(g_app->m_fonts.at(g_app->mp_scaler->GetWindowScale(name))[FONT_NORMAL]);
+		if (g_app->m_fonts.contains(g_app->mp_scaler->GetWindowScale(name)))
+			ImGui::PushFont(g_app->m_fonts.at(g_app->mp_scaler->GetWindowScale(name))[FONT_NORMAL]);
+		else
+			ImGui::PushFont(g_app->m_fonts.begin()->second[FONT_NORMAL]);
 
 		g_app->m_detached_window_scale = g_app->mp_scaler->GetWindowScale(name) / g_app->m_dpi_scale;
 		
@@ -958,12 +1028,22 @@ namespace IMAF
 		return ret;
 	}
 
+	// ISSUE 20: The public integer font selector is used as an unchecked vector index and can access outside the font table.
+	//FIXED
 	ImFont* GetFont(int type)
 	{
 		if (g_app->mp_scaler == nullptr)
-			return g_app->m_fonts.begin()->second[type];
+		{
+			if (type < g_app->m_fonts.begin()->second.size())
+				return g_app->m_fonts.begin()->second[type];
+			else
+				return *g_app->m_fonts.begin()->second.begin();
+		}
 
-		return g_app->m_fonts.at(g_app->mp_scaler->GetCurrentScale())[type];
+		if (type < g_app->m_fonts.at(g_app->mp_scaler->GetCurrentScale()).size())
+			return g_app->m_fonts.at(g_app->mp_scaler->GetCurrentScale())[type];
+		else
+			return *g_app->m_fonts.at(g_app->mp_scaler->GetCurrentScale()).begin();
 	}
 
 	void End()

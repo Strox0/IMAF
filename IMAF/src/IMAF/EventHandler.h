@@ -8,17 +8,15 @@
 #include <condition_variable>
 #include <unordered_set>
 #include <atomic>
+#include <thread>
 
 namespace IMAF
 {
+	class Application;
 	namespace Events
 	{
-		struct _EventPair
-		{
-			EventCallback callback;
-			SubID sub_id;
-			_EventPair(EventCallback cb, SubID id) : callback(cb), sub_id(id) {};
-		};
+		// ISSUE 24: _EventPair begins with an underscore followed by an uppercase letter, which is reserved to the implementation.
+		//FIXED
 
 		class EventHandler
 		{
@@ -40,15 +38,24 @@ namespace IMAF
 
 			void Unsubscribe(EventSubID sub_id);
 
-			void End();
 
 		private:
 			void Run();
 
+			friend Application;
+			void End();
+
 		private:
+			struct EventPair
+			{
+				EventCallback callback;
+				SubID sub_id;
+				EventPair(EventCallback cb, SubID id) : callback(cb), sub_id(id) {};
+			};
+
 			EventHandler();
 			std::queue<Event> m_event_pool;
-			std::unordered_map<EventID, std::vector<_EventPair>> m_events_map;
+			std::unordered_map<EventID, std::vector<EventPair>> m_events_map;
 			std::unordered_set<SubID> m_ids;
 			std::unordered_map<SubID, size_t> m_position_map;
 			IMAF::Utils::Random::Number<IMAF::Events::SubID> m_random;

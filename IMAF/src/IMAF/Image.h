@@ -1,7 +1,8 @@
 #pragma once
-#include <filesystem>
-#include <string>
 #include "imgui.h"
+#include <Windows.h>
+
+#undef LoadImage
 
 namespace IMAF
 {
@@ -9,7 +10,7 @@ namespace IMAF
 	{
 	public:
 		Image(const char* path);
-		Image(const unsigned char* buffer, size_t size);
+		Image(const unsigned char* buffer, int size);
 
 		Image(const Image&) = delete;
 		Image(Image&&) = delete;
@@ -18,7 +19,9 @@ namespace IMAF
 
 		ImVec2 GetSize() const;
 
-		unsigned char* GetRawData() const;
+		// ISSUE 28: Public getters have inconsistent const-correctness; in particular, this const method exposes mutable image data.
+		//FIXED
+		unsigned char* GetRawData();
 		bool Error() const;
 
 		void SetImagePosition(const ImVec2& start_pos);
@@ -36,7 +39,7 @@ namespace IMAF
 			struct
 			{
 				const unsigned char* m_buffer;
-				size_t m_buffer_size;
+				int m_buffer_size;
 			};
 		};
 
@@ -48,6 +51,8 @@ namespace IMAF
 		int m_height;
 		ImU32 m_tint;
 		ImVec2 m_start_pos;
+
+		HGLRC m_gl_context;
 	};
 
 	void DisplayImGuiImage(Image& image, const ImVec2& img_size = ImVec2(0, 0), const ImVec2& start_point = ImVec2(0, 0), const ImVec2& end_point = ImVec2(-1, -1));

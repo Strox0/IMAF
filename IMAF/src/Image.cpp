@@ -7,10 +7,25 @@
 
 #undef LoadImage
 
-static const char* s_supportedExtensions = ".png.jpg.jpeg.bmp.tga.gif.psd.hdr.pic";
+#include <unordered_set>
+#include <imgui.h>
+#include <gl/GL.h>
+#include <string_view>
+#include <filesystem>
+#include <Windows.h>
+
+#undef LoadImage
+
+// ISSUE 17: The concatenated substring extension check accepts partial extensions and rejects valid uppercase extensions.
+//FIXED
+static const std::unordered_set<std::string_view> s_supported_extensions(
+	{ 
+		".png",".jpg",".jpeg",".bmp",".tga",".gif",".psd",".hdr",".pic",
+		".PNG",".JPG",".JPEG",".BMP",".TGA",".GIF",".PSD",".HDR",".PIC"
+	}, 18);
 
 IMAF::Image::Image(const char* path) :
-	m_error(false), m_path(path), m_data(nullptr), m_width(0), m_height(0), m_from_buffer(false), m_texture_data(0), m_tint(IM_COL32_WHITE), m_start_pos(0,0)
+	m_error(false), m_path(path), m_data(nullptr), m_width(0), m_height(0), m_from_buffer(false), m_texture_data(0), m_tint(IM_COL32_WHITE), m_start_pos(0,0), m_gl_context(wglGetCurrentContext())
 {
 	if (!std::filesystem::exists(path) || !std::filesystem::is_regular_file(path))
 	{
@@ -18,7 +33,7 @@ IMAF::Image::Image(const char* path) :
 		return;
 	}
 	
-	if (std::strstr(s_supportedExtensions, std::filesystem::path(m_path).extension().string().c_str()) == nullptr)
+	if (!s_supported_extensions.contains(std::filesystem::path(m_path).extension().string()))
 	{
 		m_error = true;
 		return;
@@ -28,7 +43,9 @@ IMAF::Image::Image(const char* path) :
 		m_error = true;
 }
 
-IMAF::Image::Image(const unsigned char* buffer, size_t size) :
+// ISSUE 18: The public size_t buffer length is implicitly narrowed to the int length expected by stbi_load_from_memory.
+//FIXED
+IMAF::Image::Image(const unsigned char* buffer, int size) :
 	m_error(false), m_data(nullptr), m_width(0), m_height(0), m_from_buffer(true), m_buffer(buffer), m_buffer_size(size), m_texture_data(0), m_tint(IM_COL32_WHITE), m_start_pos(0, 0)
 {
 	if (buffer == nullptr || size == 0)
@@ -36,7 +53,7 @@ IMAF::Image::Image(const unsigned char* buffer, size_t size) :
 		m_error = true;
 		return;
 	}
-
+	
 	if (!LoadImage())
 		m_error = true;
 }
@@ -46,7 +63,7 @@ ImVec2 IMAF::Image::GetSize() const
 	return ImVec2(m_width,m_height);
 }
 
-unsigned char* IMAF::Image::GetRawData() const
+unsigned char* IMAF::Image::GetRawData()
 {
 	return m_data;
 }
@@ -66,6 +83,8 @@ void IMAF::Image::SetImageTint(ImU32 tint_color)
 	m_tint = tint_color;
 }
 
+// ISSUE 16: Texture upload overwrites caller-owned OpenGL texture-binding and pixel-unpack state without restoring it.
+//FIXED
 void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_point, const ImVec2& end_point, bool use_position)
 {
 	if (m_error)
@@ -78,6 +97,12 @@ void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_
 
 	if (m_texture_data == 0)
 	{
+		GLint last_texture = 0;
+		GLint last_unpack_row_length = 0;
+
+		glGetIntegerv(GL_TEXTURE_BINDING_2D, &last_texture);
+		glGetIntegerv(GL_UNPACK_ROW_LENGTH, &last_unpack_row_length);
+
 		// Create a OpenGL texture identifier
 		glGenTextures(1, &m_texture_data);
 		glBindTexture(GL_TEXTURE_2D, m_texture_data);
@@ -90,6 +115,10 @@ void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_
 
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_width, m_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, m_data);
+
+		// Restore previous OpenGL state
+		glPixelStorei(GL_UNPACK_ROW_LENGTH, last_unpack_row_length);
+		glBindTexture(GL_TEXTURE_2D, last_texture);
 	}
 	
 	if (img_size.x < 0 || img_size.y < 0)
@@ -145,18 +174,24 @@ void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_
 	}
 }
 
+// ISSUE 10: Texture deletion is not tied to the OpenGL context that owns the texture, and Images can outlive Application's context teardown.
+//FIXED
 IMAF::Image::~Image()
 {
 	if (m_data != nullptr)
 		stbi_image_free(m_data);
-	if (m_texture_data != 0)
+	if (m_texture_data != 0 && m_gl_context == wglGetCurrentContext())
 		glDeleteTextures(1, &m_texture_data);
 }
 
 bool IMAF::Image::LoadImage()
 {
 	if (m_from_buffer)
+	{
+		if (m_buffer_size < 0 || m_buffer == nullptr)
+			return false;
 		m_data = stbi_load_from_memory(m_buffer, m_buffer_size, &m_width, &m_height, nullptr, 4);
+	}
 	else
 		m_data = stbi_load(m_path, &m_width, &m_height, nullptr, 4);
 

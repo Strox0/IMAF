@@ -1,19 +1,21 @@
 #pragma once
-#include "Random.h"
-#include <limits>
+#include <cstdint>
 
 #undef max
 namespace IMAF 
 {
+	// ISSUE 9: Panel is polymorphic but has no virtual destructor, so deletion through a base-owned pointer can be undefined.
+	//FIXED
 	class Panel 
 	{
 	public:
-		Panel() : id(IMAF::Utils::Random::Number<uint64_t>(0, std::numeric_limits<uint64_t>().max()).Gen()) {}
+		Panel();
+		virtual ~Panel() = default;
 		const uint64_t GetId() const { return id; }
 
 		virtual void UiRender() {};
 
 	protected:
-		const uint64_t id;
+		uint64_t id;
 	};
 }

@@ -1,3 +1,5 @@
+// ISSUE 23: See chat for description
+//FIXED
 #pragma once
 
 #include "imgui.h"
@@ -6,14 +8,20 @@
 #include <memory>
 #include <functional>
 #include <mutex>
-#include <Windows.h>
 #include <array>
 
 #include "Panel.h"
 #include "Scale.h"
+#include <atomic>
+#include <cstdint>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
+// ISSUE 27: Several callers pass byte-style alpha values to ImVec4 even though alpha must be normalized to the 0.0f-1.0f range.
+//FIXED
 #define RGB2_IMVEC4(r,g,b) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, 1.0f )
-#define RGBA2_IMVEC4(r,g,b,a) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, a )
+#define RGBA2_IMVEC4(r,g,b,a) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, a > 1 ? a / 255.0f : a )
 
 #define FONT_DEFAULT				0
 #define FONT_NORMAL					0
@@ -184,10 +192,24 @@ namespace IMAF
 		AppProperties() : name("My Application") {};
 	};
 
+	// ISSUE 21: Application relies on process-global application, scaler, event, and docking state without enforcing or supporting a coherent instance model.
+	//FIXED
 	class Application
 	{
 	public:
-		explicit Application(const AppProperties& props = AppProperties());
+		Application(const Application&) = delete;
+		Application& operator=(const Application&) = delete;
+		Application(Application&&) = delete;
+		Application& operator=(Application&&) = delete;
+		static Application& Create(const AppProperties& props = AppProperties())
+		{
+			static Application instance(props);
+			return instance;
+		}
+		static Application& Get()
+		{
+			return Create();
+		}
 		~Application();
 
 		//Will run once before the window rendering but after the backend initalization
@@ -228,6 +250,8 @@ namespace IMAF
 		friend ImFont* GetFont(int type);
 
 	private:
+
+		explicit Application(const AppProperties& props = AppProperties());
 
 		struct SizeRect
 		{
@@ -277,8 +301,9 @@ namespace IMAF
 		AppProperties m_props;
 		ImGuiID m_dockspace_id = 0;
 
-		bool m_should_exit = false;
+		std::atomic_bool m_should_exit = false;
 		std::atomic_bool m_hidden = false;
+		std::atomic_bool m_shutdown_called = false;
 
 		std::mutex m_panels_mutex;
 		std::vector<std::shared_ptr<Panel>> m_panels;

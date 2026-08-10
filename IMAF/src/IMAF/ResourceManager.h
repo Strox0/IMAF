@@ -9,9 +9,9 @@ namespace IMAF {
 		~ResourceManager();
 
 		void* Get();
-		unsigned long Size();
+		unsigned long Size() const;
 
-		bool Error();
+		bool Error() const;
 		
 		void Free();
 

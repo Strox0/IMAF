@@ -80,27 +80,25 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	props.custom_titlebar_props.top_border = IMAF::TopBorder::Thin;
 
-	IMAF::Application* app = new IMAF::Application(props);
+	IMAF::Application& app = IMAF::Application::Create(props);
 
-	app->SetUp([&app](const IMAF::AppProperties& props, GLFWwindow* window)
+	app.SetUp([&app](const IMAF::AppProperties& props, GLFWwindow* window)
 		{
 			IMAF::Titlebar_Properties titlebar_props = props.custom_titlebar_props;
 			titlebar_props.height = IMAF::Val(40);
 			titlebar_props.AddButton(0, IMAF::ButtonSpec(IMAF::Val(30), IMAF::Val(30), IMAF::Val(5), IMAF::ButtonType::Close));
 			titlebar_props.AddButton(0, IMAF::ButtonSpec(IMAF::Val(30), IMAF::Val(30), IMAF::Val(5), IMAF::ButtonType::Maximize));
 			titlebar_props.AddButton(0, IMAF::ButtonSpec(IMAF::Val(30), IMAF::Val(30), IMAF::Val(5), IMAF::ButtonType::Minimize), 0.001f, IMAF::GroupAlign::Right, IMAF::Val(5));
-			app->SetTitlebarProperties(titlebar_props);
+			app.SetTitlebarProperties(titlebar_props);
 		}
 	);
 
 	std::shared_ptr<ExampleLayer> ptr = std::make_shared<ExampleLayer>();
-	app->AddPanel(ptr);
+	app.AddPanel(ptr);
 
-	app->AddDefDockingSetup(dock_setup);
+	app.AddDefDockingSetup(dock_setup);
 
-	app->Run();
-
-	delete app;
+	app.Run();
 
 	return 0;
 }

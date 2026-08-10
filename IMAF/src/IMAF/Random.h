@@ -1,6 +1,6 @@
 #pragma once
-#include <concepts>
 #include <random>
+#include <type_traits>
 
 namespace IMAF {
 	namespace Utils {
@@ -24,10 +24,11 @@ namespace IMAF {
 					m_max = max;
 				}
 
-				type Gen()
+				// ISSUE 12: The static random engine is shared without synchronization, allowing concurrent ID generation to race; panel IDs also have no collision check.
+				//FIXED
+				constexpr type Gen() const
 				{
-					static std::random_device dev;
-					static std::mt19937 rng(dev());
+					thread_local std::mt19937_64 rng(GenSeed());
 
 					if constexpr (Integral<T>) {
 						std::uniform_int_distribution<type> dist(m_min, m_max);
@@ -40,6 +41,13 @@ namespace IMAF {
 				}
 
 			private:
+
+				static std::mt19937_64::result_type GenSeed()
+				{
+					std::random_device rd;
+					return rd();
+				}
+
 				type m_min;
 				type m_max;
 			};

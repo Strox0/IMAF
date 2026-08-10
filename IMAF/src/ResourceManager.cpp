@@ -1,8 +1,11 @@
 #include "IMAF/ResourceManager.h"
 #include <Windows.h>
-#include <memory>
+#include <malloc.h>
+#include <string.h>
 
-IMAF::ResourceManager::ResourceManager(int resc_id, const wchar_t* resc_type) : m_id(resc_id),m_type(resc_type)
+// ISSUE 2: Resource state is not fully initialized, and GetResource calculates but never stores the resource size.
+//FIXED
+IMAF::ResourceManager::ResourceManager(int resc_id, const wchar_t* resc_type) : m_id(resc_id),m_type(resc_type),mp_resc(nullptr),m_size(0)
 {
 	if (GetResource())
 		m_error = true;
@@ -19,19 +22,25 @@ void* IMAF::ResourceManager::Get()
 	return mp_resc;
 }
 
-unsigned long IMAF::ResourceManager::Size()
+unsigned long IMAF::ResourceManager::Size() const
 {
 	return m_size;
 }
 
-bool IMAF::ResourceManager::Error()
+bool IMAF::ResourceManager::Error() const
 {
 	return m_error;
 }
 
+// ISSUE 3: Free does not clear the pointer or ownership state, so an explicit Free followed by destruction double-frees the allocation.
+//FIXED
 void IMAF::ResourceManager::Free()
 {
+	if (mp_resc == nullptr)
+		return;
 	free(mp_resc);
+	mp_resc = nullptr;
+	m_size = 0;
 }
 
 void IMAF::ResourceManager::Owned(bool state)
@@ -56,15 +65,15 @@ bool IMAF::ResourceManager::GetResource()
 	if (hMem == NULL)
 		return true;
 
-	DWORD dwSize = SizeofResource(NULL, hRes);
+	m_size = SizeofResource(NULL, hRes);
 	LPCVOID lpResc = LockResource(hMem);
 	if (lpResc == nullptr)
 		return true;
 
-	mp_resc = malloc(dwSize);
+	mp_resc = malloc(m_size);
 	if (mp_resc == nullptr)
 		return true;
-	memcpy(mp_resc, lpResc, dwSize);
+	memcpy(mp_resc, lpResc, m_size);
 	
 	return false;
 }
