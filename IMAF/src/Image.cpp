@@ -27,6 +27,12 @@ static const std::unordered_set<std::string_view> s_supported_extensions(
 IMAF::Image::Image(const char* path) :
 	m_error(false), m_path(path), m_data(nullptr), m_width(0), m_height(0), m_from_buffer(false), m_texture_data(0), m_tint(IM_COL32_WHITE), m_start_pos(0,0), m_gl_context(nullptr), m_gl_device_context(nullptr)
 {
+	if (path == nullptr)
+	{
+		m_error = true;
+		return;
+	}
+
 	if (!std::filesystem::exists(path) || !std::filesystem::is_regular_file(path))
 	{
 		m_error = true;
@@ -100,9 +106,11 @@ void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_
 
 		GLint last_texture = 0;
 		GLint last_unpack_row_length = 0;
+		GLint last_unpack_buffer = 0;
 
 		glGetIntegerv(GL_TEXTURE_BINDING_2D, &last_texture);
 		glGetIntegerv(GL_UNPACK_ROW_LENGTH, &last_unpack_row_length);
+		glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &last_unpack_buffer);
 
 		// Create a OpenGL texture identifier
 		glGenTextures(1, &m_texture_data);
@@ -114,11 +122,13 @@ void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // This is required on WebGL for non power-of-two textures
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // Same
 
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_width, m_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, m_data);
 
 		// Restore previous OpenGL state
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, last_unpack_row_length);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, last_unpack_buffer);
 		glBindTexture(GL_TEXTURE_2D, last_texture);
 	}
 	

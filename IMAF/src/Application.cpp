@@ -1059,15 +1059,16 @@ namespace IMAF
 
 	ImFont* GetFont(int type)
 	{
+		const std::vector<ImFont*>* fonts = nullptr;
 		if (g_app->mp_scaler == nullptr)
-			return g_app->m_fonts.begin()->second.front();
-
-		const std::vector<ImFont*>& fonts = g_app->GetClosestFontSet(g_app->mp_scaler->GetCurrentScale());
-
-		if (type >= 0 && type < fonts.size())
-			return fonts[type];
+			fonts = &g_app->m_fonts.begin()->second;
 		else
-			return fonts.front();
+			fonts = &g_app->GetClosestFontSet(g_app->mp_scaler->GetCurrentScale());
+
+		if (type >= 0 && type < fonts->size())
+			return (*fonts)[type];
+		else
+			return fonts->front();
 	}
 
 	void End()
@@ -1122,7 +1123,7 @@ namespace IMAF
 		colors[ImGuiCol_HeaderHovered] = ImVec4(0.64f, 0.39f, 0.89f, 1.00f);
 		colors[ImGuiCol_HeaderActive] = ImVec4(0.46f, 0.27f, 0.65f, 1.00f);
 		colors[ImGuiCol_Separator] = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
-		colors[ImGuiCol_SeparatorHovered] = ImVec4(0.55f, 0.27f, 0.73f, 199.00f);
+		colors[ImGuiCol_SeparatorHovered] = ImVec4(0.55f, 0.27f, 0.73f, 0.78f);
 		colors[ImGuiCol_SeparatorActive] = ImVec4(0.44f, 0.23f, 0.66f, 1.00f);
 		colors[ImGuiCol_Tab] = ImVec4(0.43f, 0.26f, 0.60f, 1.00f);
 		colors[ImGuiCol_TabHovered] = ImVec4(0.56f, 0.34f, 0.78f, 1.00f);
@@ -1206,7 +1207,7 @@ namespace IMAF
 		colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
 		colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
 		colors[ImGuiCol_SeparatorActive] = RGB2_IMVEC4(70, 70, 70);
-		colors[ImGuiCol_ResizeGrip] = ImVec4(0.82f, 0.82f, 0.82f, 90.00f);
+		colors[ImGuiCol_ResizeGrip] = ImVec4(0.82f, 0.82f, 0.82f, 0.35f);
 		colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.71f, 0.71f, 0.71f, 0.67f);
 		colors[ImGuiCol_ResizeGripActive] = ImVec4(0.30f, 0.30f, 0.30f, 0.94f);
 	}
