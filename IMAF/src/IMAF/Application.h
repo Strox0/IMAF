@@ -13,8 +13,9 @@
 #include <atomic>
 #include <cstdint>
 #include <string>
-#include <unordered_map>
 #include <vector>
+#include <utility>
+#include <limits>
 
 #define RGB2_IMVEC4(r,g,b) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, 1.0f )
 #define RGBA2_IMVEC4(r,g,b,a) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, a > 1 ? a / 255.0f : a )
@@ -290,6 +291,8 @@ namespace IMAF
 
 		IMAF::Application::ScreenRect GetMainApplicationScreen();
 
+		const std::vector<ImFont*>& GetClosestFontSet(float dpi_scale, float threshold = std::numeric_limits<float>::infinity());
+
 	private:
 		GLFWwindow* mp_window = nullptr;
 		AppProperties m_props;
@@ -311,7 +314,7 @@ namespace IMAF
 		float m_dpi_scale = 1.0f;
 		float m_detached_window_scale = 1.0f;
 
-		std::unordered_map<float,std::vector<ImFont*>> m_fonts;
+		std::vector<std::pair<float,std::vector<ImFont*>>> m_fonts;
 	};
 
 }

@@ -1,6 +1,5 @@
 #include "IMAF/Scale.h"
 #include <cmath>
-#include <thread>
 #include <Windows.h>
 
 #include "GLFW/glfw3.h"
@@ -94,8 +93,9 @@ void IMAF::Scale::NewWindowCallback(ImGuiViewport* viewport)
 	}
 	else
 	{
-		bool fresh = g_scaler->m_windows[std::string(window->Name)].first != g_scaler->m_monitors[window->Viewport->PlatformMonitor];
-		g_scaler->m_windows[std::string(window->Name)].first = g_scaler->m_monitors[window->Viewport->PlatformMonitor];
+		float scale = g_scaler->GetMonitorScale(window->Viewport->PlatformMonitor);
+		bool fresh = g_scaler->m_windows[std::string(window->Name)].first != scale;
+		g_scaler->m_windows[std::string(window->Name)].first = scale;
 		g_scaler->m_windows[std::string(window->Name)].second = fresh;
 	}
 }
@@ -171,6 +171,20 @@ float IMAF::Scale::Scaler::GetCurrentScale() const
 	return m_windows.at(m_curr_id).first;
 }
 
+float IMAF::Scale::Scaler::GetMonitorScale(int monitor)
+{
+	ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
+	if (monitor >= 0 && monitor < platform_io.Monitors.size() && platform_io.Monitors[monitor].PlatformHandle != nullptr)
+	{
+		float xs, ys;
+		glfwGetMonitorContentScale((GLFWmonitor*)platform_io.Monitors[monitor].PlatformHandle, &xs, &ys);
+		return m_monitors[monitor] = min(xs,ys);
+	}
+
+	auto it = m_monitors.find(monitor);
+	return it != m_monitors.end() ? it->second : m_main_window_scale.load();
+}
+
 void IMAF::Scale::Scaler::Setup()
 {
 	ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
@@ -200,8 +214,9 @@ void IMAF::Scale::Scaler::UpdateWindowScales()
 		}
 		else
 		{
-			bool fresh = m_windows[std::string(window->Name)].first != m_monitors[window->Viewport->PlatformMonitor];
-			m_windows[std::string(window->Name)].first = m_monitors[window->Viewport->PlatformMonitor];
+			float scale = GetMonitorScale(window->Viewport->PlatformMonitor);
+			bool fresh = m_windows[std::string(window->Name)].first != scale;
+			m_windows[std::string(window->Name)].first = scale;
 			m_windows[std::string(window->Name)].second = fresh;
 		}
 	}

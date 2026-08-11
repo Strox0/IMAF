@@ -51,6 +51,7 @@ namespace IMAF
 		ImVec2 m_start_pos;
 
 		HGLRC m_gl_context;
+		HDC m_gl_device_context;
 	};
 
 	void DisplayImGuiImage(Image& image, const ImVec2& img_size = ImVec2(0, 0), const ImVec2& start_point = ImVec2(0, 0), const ImVec2& end_point = ImVec2(-1, -1));

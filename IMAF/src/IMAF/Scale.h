@@ -1,9 +1,10 @@
 #pragma once
 
-#include "imgui_internal.h"
 #include <unordered_map>
 #include <string>
 #include <atomic>
+#include <imgui.h>
+#include <utility>
 
 namespace IMAF 
 {
@@ -41,12 +42,13 @@ namespace IMAF
 		private:
 
 			void Setup();
+			float GetMonitorScale(int monitor);
 			friend void NewWindowCallback(ImGuiViewport* viewport);
 
 		private:
 			std::atomic<float> m_main_window_scale = 1.0f;
 			std::unordered_map<std::string, std::pair<float,bool>> m_windows;
-			std::unordered_map<short, float> m_monitors;
+			std::unordered_map<int, float> m_monitors;
 			std::string m_curr_id;
 		};
 

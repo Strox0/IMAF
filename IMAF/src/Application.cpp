@@ -11,7 +11,6 @@
 
 #include "IMAF/fonts.h"
 #include "IMAF/Image.h"
-#include "IMAF/EventHandler.h"
 
 #include <string>
 #include "IMAF/IconsFontAwesome6.h"
@@ -30,6 +29,8 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+#include <cstdlib>
+#include <utility>
 
 IMAF::Application* g_app = nullptr;
 
@@ -41,6 +42,20 @@ static void __DPICallBack(GLFWwindow* window, float xscale, float yscale)
 	IMAF::Application* app = (IMAF::Application*)glfwGetWindowUserPointer(window);
 	app->__CallScaleCallback(xscale, yscale);
 }
+
+struct less_scale_font_pair
+{
+	using sfp = std::pair<float, std::vector<ImFont*>>;
+	_NODISCARD constexpr bool operator()(const sfp& _Left, const sfp& _Right) const
+	{
+		return _Left.first < _Right.first;
+	}
+
+	_NODISCARD constexpr bool operator()(const sfp& _Left, const float& _Right) const
+	{
+		return _Left.first < _Right;
+	}
+};
 
 namespace IMAF
 {
@@ -317,8 +332,10 @@ namespace IMAF
 			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontBold[0], sizeof(g_FontBold), size, &fontConfig));
 			fonts.push_back(io.Fonts->AddFontFromMemoryTTF((void*)&g_FontExtrabold[0], sizeof(g_FontExtrabold), size, &fontConfig));
 
-			m_fonts[i.DpiScale] = fonts;
+			m_fonts.emplace_back(i.DpiScale, fonts);
 		}
+
+		std::sort(m_fonts.begin(), m_fonts.end(), less_scale_font_pair{});
 
 		if (m_props.dpi_aware)
 		{
@@ -330,12 +347,13 @@ namespace IMAF
 
 		float xscale, yscale;
 		glfwGetWindowContentScale(mp_window, &xscale, &yscale);
-		io.FontDefault = m_fonts.at(min(xscale,yscale))[0];
-		style.ScaleAllSizes(xscale);
-		m_dpi_scale = xscale;
+		float dpi_scale = min(xscale,yscale);
+		io.FontDefault = GetClosestFontSet(dpi_scale)[0];
+		style.ScaleAllSizes(dpi_scale);
+		m_dpi_scale = dpi_scale;
 
 		if (mp_scaler)
-			mp_scaler->SetMainWindowScale((xscale < yscale ? xscale : yscale));
+			mp_scaler->SetMainWindowScale(dpi_scale);
 
 		if (m_props.dpi_aware && !m_props.relative_size)
 		{
@@ -685,6 +703,25 @@ namespace IMAF
 		return { monitor_info.rcMonitor.left, monitor_info.rcMonitor.top, monitor_info.rcMonitor.right, monitor_info.rcMonitor.bottom };
 	}
 
+	const std::vector<ImFont*>& Application::GetClosestFontSet(float dpi_scale, float threshold)
+	{
+		auto it = std::lower_bound(m_fonts.begin(), m_fonts.end(), dpi_scale, less_scale_font_pair{});
+
+		float best;
+		if (it == m_fonts.end())
+			it--;
+		else if (it != m_fonts.begin())
+		{
+			float upper = it->first;
+			float lower = (it - 1)->first;
+
+			if (std::abs(dpi_scale - lower) < std::abs(upper - dpi_scale))
+				it--;
+		}
+
+		return it->second;
+	}
+
 	void Application::RemovePanel(uint64_t id)
 	{
 		std::lock_guard mtp(m_panels_mutex);
@@ -703,16 +740,17 @@ namespace IMAF
 
 	void Application::__CallScaleCallback(float x, float y)
 	{
-		if (x != m_dpi_scale)
+		float dpi_scale = min(x,y);
+		if (dpi_scale != m_dpi_scale)
 		{
 			if (mp_scaler)
 			{
-				mp_scaler->SetMainWindowScale((x < y ? x : y));
+				mp_scaler->SetMainWindowScale(dpi_scale);
 				mp_scaler->UpdateWindowScales();
 			}
 
-			float style_scale = x / m_dpi_scale;
-			m_dpi_scale = x;
+			float style_scale = dpi_scale / m_dpi_scale;
+			m_dpi_scale = dpi_scale;
 
 			ImGui::GetStyle().ScaleAllSizes(style_scale);
 
@@ -999,10 +1037,8 @@ namespace IMAF
 
 		g_app->mp_scaler->SetCurrentID(name);
 
-		if (g_app->m_fonts.contains(g_app->mp_scaler->GetWindowScale(name)))
-			ImGui::PushFont(g_app->m_fonts.at(g_app->mp_scaler->GetWindowScale(name))[FONT_NORMAL]);
-		else
-			ImGui::PushFont(g_app->m_fonts.begin()->second[FONT_NORMAL]);
+		const std::vector<ImFont*>& fonts = g_app->GetClosestFontSet(g_app->mp_scaler->GetWindowScale(name));
+		ImGui::PushFont(fonts[FONT_NORMAL]);
 
 		g_app->m_detached_window_scale = g_app->mp_scaler->GetWindowScale(name) / g_app->m_dpi_scale;
 		
@@ -1024,17 +1060,14 @@ namespace IMAF
 	ImFont* GetFont(int type)
 	{
 		if (g_app->mp_scaler == nullptr)
-		{
-			if (type < g_app->m_fonts.begin()->second.size())
-				return g_app->m_fonts.begin()->second[type];
-			else
-				return *g_app->m_fonts.begin()->second.begin();
-		}
+			return g_app->m_fonts.begin()->second.front();
 
-		if (type < g_app->m_fonts.at(g_app->mp_scaler->GetCurrentScale()).size())
-			return g_app->m_fonts.at(g_app->mp_scaler->GetCurrentScale())[type];
+		const std::vector<ImFont*>& fonts = g_app->GetClosestFontSet(g_app->mp_scaler->GetCurrentScale());
+
+		if (type >= 0 && type < fonts.size())
+			return fonts[type];
 		else
-			return *g_app->m_fonts.at(g_app->mp_scaler->GetCurrentScale()).begin();
+			return fonts.front();
 	}
 
 	void End()
