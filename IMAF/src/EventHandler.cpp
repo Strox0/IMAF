@@ -113,13 +113,13 @@ void IMAF::Events::EventHandler::Run()
 			}
 		}
 
-		if (!m_events_map.contains(event.event_id))
-			continue;
-
 		std::vector<EventPair> callbacks;
 		{
 			std::lock_guard me(m_mutex_events);
-			callbacks = m_events_map[event.event_id];
+			auto it = m_events_map.find(event.event_id);
+			if (it == m_events_map.end())
+				continue;
+			callbacks = it->second;
 		}
 
 		for (const auto& [cb,id] : callbacks)

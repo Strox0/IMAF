@@ -330,7 +330,7 @@ namespace IMAF
 
 		float xscale, yscale;
 		glfwGetWindowContentScale(mp_window, &xscale, &yscale);
-		io.FontDefault = m_fonts.at(xscale)[0];
+		io.FontDefault = m_fonts.at(min(xscale,yscale))[0];
 		style.ScaleAllSizes(xscale);
 		m_dpi_scale = xscale;
 
@@ -369,6 +369,9 @@ namespace IMAF
 
 	void Application::Run()
 	{
+		if (m_shutdown_called)
+			return;
+
 		if (!CreateApplication())
 		{
 			MessageBoxA(NULL, "Application Creation Failed", "Fatal Error", MB_OK | MB_ICONERROR);
@@ -432,7 +435,12 @@ namespace IMAF
 	void Application::Shutdown(bool failure)
 	{
 		if (mp_scaler)
+		{
 			Scale::DestroyScaler();
+			mp_scaler = nullptr;
+		}
+
+		m_fonts.clear();
 
 		if (!failure && !m_shutdown_called)
 		{
@@ -446,7 +454,10 @@ namespace IMAF
 			}
 
 			if (mp_window != nullptr)
+			{
 				glfwDestroyWindow(mp_window);
+				mp_window = nullptr;
+			}
 			glfwTerminate();
 
 			m_shutdown_called = true;
