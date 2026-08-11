@@ -49,8 +49,15 @@ void IMAF::Scale::InitScaler()
 	}
 }
 
-// ISSUE 22: This library callback terminates the entire host process instead of propagating or reporting a recoverable failure.
-//window should never be a nullptr therefore it is a critical faliure
+void IMAF::Scale::DestroyScaler()
+{
+	if (g_scaler != nullptr)
+	{
+		delete g_scaler;
+	}
+}
+
+// ISSUE 22: Failures terminate the host process instead of returning structured errors.
 void IMAF::Scale::NewWindowCallback(ImGuiViewport* viewport)
 {
 	assert(viewport != nullptr);
@@ -98,8 +105,6 @@ IMAF::Scale::Scaler* IMAF::Scale::GetScaler()
 	return g_scaler;
 }
 
-// ISSUE 1: Scaler setup runs on a detached thread that races ImGui/backend initialization and has no effective shutdown or owned lifetime.
-//FIXED
 IMAF::Scale::Scaler::Scaler() : m_main_window_scale(1.f)
 {
 	Setup();
@@ -108,6 +113,7 @@ IMAF::Scale::Scaler::Scaler() : m_main_window_scale(1.f)
 IMAF::Scale::Scaler::~Scaler()
 {
 	g_scaler = nullptr;
+	ImGui::GetPlatformIO().Platform_OnChangedViewport = nullptr;
 }
 
 float IMAF::Scale::Scaler::Val(float x) const

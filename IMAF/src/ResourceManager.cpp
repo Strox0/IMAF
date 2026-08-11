@@ -3,8 +3,6 @@
 #include <malloc.h>
 #include <string.h>
 
-// ISSUE 2: Resource state is not fully initialized, and GetResource calculates but never stores the resource size.
-//FIXED
 IMAF::ResourceManager::ResourceManager(int resc_id, const wchar_t* resc_type) : m_id(resc_id),m_type(resc_type),mp_resc(nullptr),m_size(0)
 {
 	if (GetResource())
@@ -32,8 +30,6 @@ bool IMAF::ResourceManager::Error() const
 	return m_error;
 }
 
-// ISSUE 3: Free does not clear the pointer or ownership state, so an explicit Free followed by destruction double-frees the allocation.
-//FIXED
 void IMAF::ResourceManager::Free()
 {
 	if (mp_resc == nullptr)

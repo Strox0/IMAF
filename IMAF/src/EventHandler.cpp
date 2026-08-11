@@ -4,7 +4,7 @@
 #include <mutex>
 #include <utility>
 #include <vector>
-#include <exception>
+#include <thread>
 
 IMAF::Events::EventHandler::EventHandler() : m_t(&IMAF::Events::EventHandler::Run, this), m_random(1,std::numeric_limits<IMAF::Events::SubID>::max())
 {
@@ -16,8 +16,6 @@ IMAF::Events::EventHandler::~EventHandler()
 	End();
 }
 
-// ISSUE 5: Manual lock/unlock pairs surround throwing operations here and in related event and panel paths, so exceptions can permanently strand mutexes.
-//FIXED
 void IMAF::Events::EventHandler::Dispatch(const Event& event)
 {
 	{
@@ -88,18 +86,14 @@ void IMAF::Events::EventHandler::Unsubscribe(EventSubID sub_id)
 	}
 }
 
-// ISSUE 29: End can self-join when called from a callback, and shutdown does not define whether queued events are drained or discarded.
-//FIXED
 void IMAF::Events::EventHandler::End()
 {
 	m_end = true;
 	m_cv.notify_all();
-	if (m_t.joinable())
+	if (m_t.joinable() && m_t.get_id() != std::this_thread::get_id())
 		m_t.join();
 }
 
-// ISSUE 4: Exceptions escaping an event callback also escape the worker thread entry point and invoke std::terminate.
-//FIXED
 void IMAF::Events::EventHandler::Run()
 {
 	while (!m_end)
@@ -109,21 +103,25 @@ void IMAF::Events::EventHandler::Run()
 			std::unique_lock<std::mutex> lc(m_mutex_queue);
 			m_cv.wait(lc, [this]() { return !this->m_event_pool.empty() || m_end; });
 
-			if (m_event_pool.empty())
+			if (m_event_pool.empty() || m_end)
 				continue;
 
-			m_mutex_events.lock();
-			event = std::move(m_event_pool.front());
-			m_event_pool.pop();
+			{
+				std::lock_guard me(m_mutex_events);
+				event = std::move(m_event_pool.front());
+				m_event_pool.pop();
+			}
 		}
 
 		if (!m_events_map.contains(event.event_id))
-		{
-			m_mutex_events.unlock();
 			continue;
+
+		std::vector<EventPair> callbacks;
+		{
+			std::lock_guard me(m_mutex_events);
+			callbacks = m_events_map[event.event_id];
 		}
-		const std::vector<EventPair> callbacks = m_events_map[event.event_id];
-		m_mutex_events.unlock();
+
 		for (const auto& [cb,id] : callbacks)
 		{
 			try
@@ -131,10 +129,7 @@ void IMAF::Events::EventHandler::Run()
 				if (cb(event) == Propagate::Stop)
 					break;
 			}
-			catch (std::exception& e)
-			{
-
-			}
+			catch (...) {}
 		}
 	}
 }

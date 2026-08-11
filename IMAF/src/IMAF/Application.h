@@ -1,5 +1,3 @@
-// ISSUE 23: See chat for description
-//FIXED
 #pragma once
 
 #include "imgui.h"
@@ -18,8 +16,6 @@
 #include <unordered_map>
 #include <vector>
 
-// ISSUE 27: Several callers pass byte-style alpha values to ImVec4 even though alpha must be normalized to the 0.0f-1.0f range.
-//FIXED
 #define RGB2_IMVEC4(r,g,b) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, 1.0f )
 #define RGBA2_IMVEC4(r,g,b,a) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, a > 1 ? a / 255.0f : a )
 
@@ -192,8 +188,6 @@ namespace IMAF
 		AppProperties() : name("My Application") {};
 	};
 
-	// ISSUE 21: Application relies on process-global application, scaler, event, and docking state without enforcing or supporting a coherent instance model.
-	//FIXED
 	class Application
 	{
 	public:

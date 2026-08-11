@@ -15,9 +15,6 @@ namespace IMAF
 	class Application;
 	namespace Events
 	{
-		// ISSUE 24: _EventPair begins with an underscore followed by an uppercase letter, which is reserved to the implementation.
-		//FIXED
-
 		class EventHandler
 		{
 		public:
@@ -41,8 +38,6 @@ namespace IMAF
 
 		private:
 			void Run();
-
-			friend Application;
 			void End();
 
 		private:

@@ -67,17 +67,12 @@ namespace IMAF
 		g_app = this;
 	}
 
-	// ISSUE 6: Application destruction does not own complete, idempotent GLFW/ImGui/scaler/global teardown, so non-Run and exceptional paths leak state.
-	//FIXED
 	Application::~Application()
 	{
-		IMAF::Events::EventHandler::Get().End();
 		g_app = nullptr;
 		Shutdown(false);
 	}
 
-	// ISSUE 19: Relative-size validation rejects zero and values above one but accepts negative values that produce invalid window dimensions.
-	//FIXED
 	bool Application::Init()
 	{
 		glfwSetErrorCallback(glfw_error_callback);
@@ -333,8 +328,6 @@ namespace IMAF
 			glfwSetWindowContentScaleCallback(mp_window, __DPICallBack);
 		}
 
-		// ISSUE 7: Font selection assumes an exact floating-point DPI key and indexes an inserted empty vector when that key is absent.
-		//FIXED
 		float xscale, yscale;
 		glfwGetWindowContentScale(mp_window, &xscale, &yscale);
 		io.FontDefault = m_fonts.at(xscale)[0];
@@ -360,8 +353,6 @@ namespace IMAF
 		return true;
 	}
 
-	// ISSUE 5: Panel locking also uses manual lock/unlock around throwing shared_ptr/vector operations and can strand the mutex.
-	//FIXED
 	void Application::AddPanel(std::shared_ptr<Panel> panel)
 	{
 		if (panel != nullptr)
@@ -406,9 +397,12 @@ namespace IMAF
 			if (m_props.custom_titlebar)
 				m_props.custom_titlebar_props.titlebar_draw_f(&m_props, mp_window);
 
-			m_panels_mutex.lock();
-			std::vector<std::shared_ptr<Panel>> panels_copy = m_panels;
-			m_panels_mutex.unlock();
+
+			std::vector<std::shared_ptr<Panel>> panels_copy;
+			{
+				std::lock_guard mtp(m_panels_mutex);
+				panels_copy = m_panels;
+			}
 
 			for (auto& i : panels_copy)
 			{
@@ -438,16 +432,18 @@ namespace IMAF
 	void Application::Shutdown(bool failure)
 	{
 		if (mp_scaler)
-			mp_scaler->Shutdown();
+			Scale::DestroyScaler();
 
 		if (!failure && !m_shutdown_called)
 		{
-			if (ImGui::GetIO().BackendRendererUserData != nullptr)
-				ImGui_ImplOpenGL3_Shutdown();
-			if (ImGui::GetIO().BackendPlatformUserData != nullptr)
-				ImGui_ImplGlfw_Shutdown();
 			if (ImGui::GetCurrentContext() != nullptr)
+			{
+				if (ImGui::GetIO().BackendRendererUserData != nullptr)
+					ImGui_ImplOpenGL3_Shutdown();
+				if (ImGui::GetIO().BackendPlatformUserData != nullptr)
+					ImGui_ImplGlfw_Shutdown();
 				ImGui::DestroyContext();
+			}
 
 			if (mp_window != nullptr)
 				glfwDestroyWindow(mp_window);
@@ -501,8 +497,6 @@ namespace IMAF
 			Sleep(5);
 	}
 
-	// ISSUE 25: SetDefaultProperties resets only part of AppProperties and uses relative dimensions inconsistent with Init's defaults.
-	//FIXED
 	void Application::SetDefaultProperties(AppProperties& props)
 	{
 		props.custom_titlebar = false;
@@ -526,10 +520,13 @@ namespace IMAF
 		props.min_height = 0;
 		props.min_width = 0;
 		props.dockspace_color = ImVec4(0.09f, 0.09f, 0.10f, 1.00f);
+		props.icons.clear();
+		props.custom_titlebar_props = Titlebar_Properties();
+		props.ini_file = nullptr;
+		props.width.abosulte = 0;
+		props.height.abosulte = 0;
 	}
 
-	// ISSUE 15: This setter unconditionally calls native-window functions even though mp_window is null before Run creates the window.
-	//FIXED
 	void Application::SetTitlebarProperties(const Titlebar_Properties& props)
 	{
 		m_props.custom_titlebar_props = props;
@@ -544,8 +541,6 @@ namespace IMAF
 			UpdateGLFWTitlebarRects();
 	}
 
-	// ISSUE 11: m_should_exit is a plain bool that can race when Exit is called from the background event thread.
-	//FIXED
 	void Application::Exit()
 	{
 		m_should_exit = true;
@@ -594,8 +589,6 @@ namespace IMAF
 		ImGui::PopStyleColor(2);
 	}
 
-	// ISSUE 14: Empty replacement lists skip native removal calls, leaving previously configured exclusions and button groups active.
-	//FIXED
 	void Application::UpdateGLFWTitlebarRects()
 	{
 		glfwSetCustomTitlebarHeight(mp_window, m_props.custom_titlebar_props.height);
@@ -683,9 +676,8 @@ namespace IMAF
 
 	void Application::RemovePanel(uint64_t id)
 	{
-		m_panels_mutex.lock();
+		std::lock_guard mtp(m_panels_mutex);
 		std::erase_if(m_panels, [id](std::shared_ptr<IMAF::Panel> ptr) -> bool { return ptr->GetId() == id ? true : false; });
-		m_panels_mutex.unlock();
 	}
 
 	GLFWwindow* Application::GetWindowHandle() const
@@ -728,10 +720,6 @@ namespace IMAF
 		return m_dockspace_id == 0 ? 0 : m_dockspace_id;
 	}
 
-	// ISSUE 8: The application name is passed directly as an ImGui printf-style format string, so percent conversions cause undefined behavior.
-	//FIXED
-	// ISSUE 26: Repeated titlebar buttons reuse identical ImGui labels and IDs, allowing their interaction state to collide.
-	//FIXED
 	void DefCustomTitlebarDrawMAC(const AppProperties* app_props, GLFWwindow* window)
 	{
 		int w, h;
@@ -751,6 +739,7 @@ namespace IMAF
 		ImGui::PushStyleColor(ImGuiCol_Button, RGBA2_IMVEC4(37, 37, 37, 0));
 		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 35);
 
+		size_t idincr = 0;
 		for (size_t i = 0; i < props->button_groups.size(); i++)
 		{
 			if (props->button_groups[i].buttons.size() == 0)
@@ -780,7 +769,6 @@ namespace IMAF
 			}
 			}
 
-			size_t idincr = 0;
 			for (const auto& btn : props->button_groups[i].buttons)
 			{
 				ImVec2 button_pos;
@@ -845,10 +833,6 @@ namespace IMAF
 		ImGui::PopStyleColor();
 	}
 
-	// ISSUE 8: The application name is passed directly as an ImGui printf-style format string, so percent conversions cause undefined behavior.
-	//FIXED
-	// ISSUE 26: Repeated titlebar buttons reuse identical ImGui labels and IDs, allowing their interaction state to collide.
-	//FIXED
 	void DefCustomTitlebarDraw(const AppProperties* app_props, GLFWwindow* window)
 	{
 		int w, h;
@@ -869,6 +853,7 @@ namespace IMAF
 		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 35);
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0,0 });
 
+		size_t idincr = 0;
 		for (size_t i = 0; i < props->button_groups.size(); i++)
 		{
 			if (props->button_groups[i].buttons.size() == 0)
@@ -898,7 +883,6 @@ namespace IMAF
 			}
 			}
 
-			size_t idincr = 0;
 			for (const auto& btn : props->button_groups[i].buttons)
 			{
 				ImVec2 button_pos;
@@ -997,8 +981,6 @@ namespace IMAF
 		}
 	}
 
-	// ISSUE 7: Window rendering also performs exact scale-key lookup, so new or mismatched DPI values can throw instead of selecting a fallback font set.
-	//FIXED
 	bool Begin(const char* name, bool* p_open, ImGuiWindowFlags flags)
 	{
 		if (g_app->mp_scaler == nullptr)
@@ -1028,8 +1010,6 @@ namespace IMAF
 		return ret;
 	}
 
-	// ISSUE 20: The public integer font selector is used as an unchecked vector index and can access outside the font table.
-	//FIXED
 	ImFont* GetFont(int type)
 	{
 		if (g_app->mp_scaler == nullptr)
@@ -1183,7 +1163,7 @@ namespace IMAF
 		colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
 		colors[ImGuiCol_SeparatorActive] = RGB2_IMVEC4(70, 70, 70);
 		colors[ImGuiCol_ResizeGrip] = ImVec4(0.82f, 0.82f, 0.82f, 90.00f);
-		colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.71f, 0.71f, 0.71f, 170.00f);
-		colors[ImGuiCol_ResizeGripActive] = ImVec4(0.30f, 0.30f, 0.30f, 240.00f);
+		colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.71f, 0.71f, 0.71f, 0.67f);
+		colors[ImGuiCol_ResizeGripActive] = ImVec4(0.30f, 0.30f, 0.30f, 0.94f);
 	}
 }

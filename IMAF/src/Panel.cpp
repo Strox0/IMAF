@@ -23,3 +23,9 @@ IMAF::Panel::Panel() : id(0)
 		}
 	}
 }
+
+IMAF::Panel::~Panel()
+{
+	std::lock_guard<std::mutex> m(m_mutex);
+	m_ids.erase(id);
+}

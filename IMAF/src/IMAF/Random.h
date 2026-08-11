@@ -24,8 +24,6 @@ namespace IMAF {
 					m_max = max;
 				}
 
-				// ISSUE 12: The static random engine is shared without synchronization, allowing concurrent ID generation to race; panel IDs also have no collision check.
-				//FIXED
 				constexpr type Gen() const
 				{
 					thread_local std::mt19937_64 rng(GenSeed());

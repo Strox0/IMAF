@@ -19,8 +19,6 @@ namespace IMAF
 
 		ImVec2 GetSize() const;
 
-		// ISSUE 28: Public getters have inconsistent const-correctness; in particular, this const method exposes mutable image data.
-		//FIXED
 		unsigned char* GetRawData();
 		bool Error() const;
 
