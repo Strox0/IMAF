@@ -1,5 +1,6 @@
 #include "IMAF/Image.h"
 #include "IMAF/Application.h"
+#include "IMAF/GLLoader.h"
 
 #include "GLES3/gl3.h"
 #define STB_IMAGE_IMPLEMENTATION
@@ -104,6 +105,12 @@ void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_
 		m_gl_context = wglGetCurrentContext();
 		m_gl_device_context = wglGetCurrentDC();
 
+		if (IMAF::Utils::LoadGlFunctions())
+		{
+			MessageBoxA(NULL, "Failed to load opengl function.", "Critical Error", MB_ICONERROR);
+			ExitProcess(1);
+		}
+
 		GLint last_texture = 0;
 		GLint last_unpack_row_length = 0;
 		GLint last_unpack_buffer = 0;
@@ -122,13 +129,13 @@ void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // This is required on WebGL for non power-of-two textures
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // Same
 
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+		IMAF::Utils::glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_width, m_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, m_data);
 
 		// Restore previous OpenGL state
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, last_unpack_row_length);
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, last_unpack_buffer);
+		IMAF::Utils::glBindBuffer(GL_PIXEL_UNPACK_BUFFER, last_unpack_buffer);
 		glBindTexture(GL_TEXTURE_2D, last_texture);
 	}
 	

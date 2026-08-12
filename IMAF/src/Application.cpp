@@ -11,6 +11,7 @@
 
 #include "IMAF/fonts.h"
 #include "IMAF/Image.h"
+#include "IMAF/GLLoader.h"
 
 #include <string>
 #include "IMAF/IconsFontAwesome6.h"

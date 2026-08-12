@@ -11,12 +11,11 @@ namespace
 	{
 		std::mutex mutex;
 		std::unordered_set<uint64_t> ids;
-	};
+	} pr;
 
 	PanelRegistry& GetPanelRegistry()
 	{
-		static PanelRegistry registry;
-		return registry;
+		return pr;
 	}
 }
 
