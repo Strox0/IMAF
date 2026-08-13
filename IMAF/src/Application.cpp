@@ -12,6 +12,7 @@
 #include "IMAF/fonts.h"
 #include "IMAF/Image.h"
 #include "IMAF/GLLoader.h"
+#include "IMAF/Textures.h"
 
 #include <string>
 #include "IMAF/IconsFontAwesome6.h"
@@ -225,6 +226,8 @@ namespace IMAF
 		glfwSetWindowUserPointer(mp_window, this);
 		glfwMakeContextCurrent(mp_window);
 		glfwSwapInterval(1);
+
+		IMAF::Utils::Textures::RegisterContext(wglGetCurrentContext());
 
 		if (m_props.custom_titlebar)
 		{
@@ -453,6 +456,14 @@ namespace IMAF
 
 	void Application::Shutdown(bool failure)
 	{
+		{
+			std::lock_guard m(m_panels_mutex);
+			m_panels.clear();
+		}
+
+		IMAF::Utils::Textures::PreformDelete();
+		IMAF::Utils::Textures::RetireContext(wglGetCurrentContext());
+
 		if (mp_scaler)
 		{
 			Scale::DestroyScaler();
@@ -485,6 +496,8 @@ namespace IMAF
 
 	void Application::BeginRender()
 	{
+		IMAF::Utils::Textures::PreformDelete();
+
 		// Start the Dear ImGui frame
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();

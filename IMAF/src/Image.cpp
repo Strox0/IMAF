@@ -1,6 +1,7 @@
 #include "IMAF/Image.h"
 #include "IMAF/Application.h"
 #include "IMAF/GLLoader.h"
+#include "IMAF/Textures.h"
 
 #include "GLES3/gl3.h"
 #define STB_IMAGE_IMPLEMENTATION
@@ -26,7 +27,7 @@ static const std::unordered_set<std::string_view> s_supported_extensions(
 	}, 9);
 
 IMAF::Image::Image(const char* path) :
-	m_error(false), m_path(path), m_data(nullptr), m_width(0), m_height(0), m_from_buffer(false), m_texture_data(0), m_tint(IM_COL32_WHITE), m_start_pos(0,0), m_gl_context(nullptr), m_gl_device_context(nullptr)
+	m_error(false), m_path(path), m_data(nullptr), m_width(0), m_height(0), m_from_buffer(false), m_texture_data(0), m_tint(IM_COL32_WHITE), m_start_pos(0,0), m_gl_context(nullptr)
 {
 	if (path == nullptr)
 	{
@@ -53,7 +54,7 @@ IMAF::Image::Image(const char* path) :
 }
 
 IMAF::Image::Image(const unsigned char* buffer, int size) :
-	m_error(false), m_data(nullptr), m_width(0), m_height(0), m_from_buffer(true), m_buffer(buffer), m_buffer_size(size), m_texture_data(0), m_tint(IM_COL32_WHITE), m_start_pos(0, 0), m_gl_context(nullptr), m_gl_device_context(nullptr)
+	m_error(false), m_data(nullptr), m_width(0), m_height(0), m_from_buffer(true), m_buffer(buffer), m_buffer_size(size), m_texture_data(0), m_tint(IM_COL32_WHITE), m_start_pos(0, 0), m_gl_context(nullptr)
 {
 	if (buffer == nullptr || size == 0)
 	{
@@ -103,7 +104,6 @@ void IMAF::Image::DisplayImGuiImage(const ImVec2& img_size, const ImVec2& start_
 	if (m_texture_data == 0)
 	{
 		m_gl_context = wglGetCurrentContext();
-		m_gl_device_context = wglGetCurrentDC();
 
 		if (IMAF::Utils::LoadGlFunctions())
 		{
@@ -198,18 +198,7 @@ IMAF::Image::~Image()
 		stbi_image_free(m_data);
 
 	if (m_texture_data != 0 && m_gl_context != nullptr)
-	{
-		HGLRC current_context = wglGetCurrentContext();
-		HDC current_device_context = wglGetCurrentDC();
-		bool switched_context = current_context != m_gl_context;
-
-		if (!switched_context || wglMakeCurrent(m_gl_device_context, m_gl_context))
-		{
-			glDeleteTextures(1, &m_texture_data);
-			if (switched_context)
-				wglMakeCurrent(current_device_context, current_context);
-		}
-	}
+		IMAF::Utils::Textures::QueueDelete(m_gl_context, m_texture_data);
 }
 
 bool IMAF::Image::LoadImage()
