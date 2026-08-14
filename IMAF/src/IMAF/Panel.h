@@ -8,12 +8,16 @@ namespace IMAF
 	{
 	public:
 		Panel();
+		Panel(Panel&&) = delete;
+		Panel(const Panel&) = delete;
+		Panel& operator=(const Panel&) = delete;
+		Panel& operator=(Panel&&) = delete;
 		virtual ~Panel();
 		const uint64_t GetId() const { return id; }
 
 		virtual void UiRender() {};
 
-	protected:
-		uint64_t id;
+	private:
+		const uint64_t id;
 	};
 }

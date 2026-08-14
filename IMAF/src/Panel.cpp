@@ -17,25 +17,32 @@ namespace
 	{
 		return pr;
 	}
+
+	uint64_t GenId()
+	{
+		IMAF::Utils::Random::Number<uint64_t> g(0, std::numeric_limits<uint64_t>::max());
+
+		PanelRegistry& pr = GetPanelRegistry();
+
+		uint64_t id = 0;
+		while (true)
+		{
+			id = g.Gen();
+
+			std::lock_guard<std::mutex> m(pr.mutex);
+			if (!pr.ids.contains(id))
+			{
+				pr.ids.insert(id);
+				break;
+			}
+		}
+		return id;
+	}
 }
 
-IMAF::Panel::Panel() : id(0)
+IMAF::Panel::Panel() : id(GenId())
 {
-	IMAF::Utils::Random::Number<uint64_t> g(0, std::numeric_limits<uint64_t>::max());
 
-	PanelRegistry& pr = GetPanelRegistry();
-
-	while (true)
-	{
-		id = g.Gen();
-
-		std::lock_guard<std::mutex> m(pr.mutex);
-		if (!pr.ids.contains(id))
-		{
-			pr.ids.insert(id);
-			break;
-		}
-	}
 }
 
 IMAF::Panel::~Panel()
