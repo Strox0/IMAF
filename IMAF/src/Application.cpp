@@ -175,7 +175,7 @@ namespace IMAF
 		if (m_props.fullscreen)
 			monitor = glfwGetPrimaryMonitor();
 
-		mp_window = glfwCreateWindow(m_props.width.abosulte, m_props.height.abosulte, m_props.name, monitor, NULL); //Create Window
+		mp_window = glfwCreateWindow(m_props.width.abosulte, m_props.height.abosulte, m_props.name.c_str(), monitor, NULL); //Create Window
 		if (mp_window == nullptr)
 			return false;
 
@@ -264,8 +264,8 @@ namespace IMAF
 		if (m_props.maximized)
 			glfwMaximizeWindow(mp_window);
 
-		if (m_props.ini_file)
-			io.IniFilename = m_props.ini_file;
+		if (!m_props.ini_file.empty())
+			io.IniFilename = m_props.ini_file.c_str();
 
 		if (!m_props.gen_ini)
 			io.IniFilename = NULL;
@@ -565,7 +565,7 @@ namespace IMAF
 		props.dockspace_color = ImVec4(0.09f, 0.09f, 0.10f, 1.00f);
 		props.icons.clear();
 		props.custom_titlebar_props = Titlebar_Properties();
-		props.ini_file = nullptr;
+		props.ini_file.clear();
 		props.width.abosulte = 0;
 		props.height.abosulte = 0;
 	}
@@ -879,11 +879,11 @@ namespace IMAF
 		}
 
 		ImVec2 text_pos;
-		text_pos.x = (float)w / 2 - ImGui::CalcTextSize(app_props->name).x / 2;
-		text_pos.y = props->height / 2.f - ImGui::CalcTextSize(app_props->name).y / 2;
+		text_pos.x = (float)w / 2 - ImGui::CalcTextSize(app_props->name.c_str()).x / 2;
+		text_pos.y = props->height / 2.f - ImGui::CalcTextSize(app_props->name.c_str()).y / 2;
 
 		ImGui::SetCursorPos(text_pos);
-		ImGui::TextUnformatted(app_props->name);
+		ImGui::TextUnformatted(app_props->name.c_str());
 
 		ImDrawList* DrawList = ImGui::GetWindowDrawList();
 		DrawList->AddLine({ (float)x,(float)(props->height - 2 + y) }, { (float)(w+x),(float)(props->height - 2 + y) }, IM_COL32(73,73,73,255), 3.0f);
@@ -995,11 +995,11 @@ namespace IMAF
 		}
 
 		ImVec2 text_pos;
-		text_pos.x = (float)w / 2 - ImGui::CalcTextSize(app_props->name).x / 2;
-		text_pos.y = props->height / 2.f - ImGui::CalcTextSize(app_props->name).y / 2;
+		text_pos.x = (float)w / 2 - ImGui::CalcTextSize(app_props->name.c_str()).x / 2;
+		text_pos.y = props->height / 2.f - ImGui::CalcTextSize(app_props->name.c_str()).y / 2;
 
 		ImGui::SetCursorPos(text_pos);
-		ImGui::TextUnformatted(app_props->name);
+		ImGui::TextUnformatted(app_props->name.c_str());
 
 		ImDrawList* DrawList = ImGui::GetWindowDrawList();
 		DrawList->AddLine({ (float)x,(float)(props->height - 2 + y) }, { (float)(w + x),(float)(props->height - 2 + y) }, IM_COL32(73, 73, 73, 255), 3.0f);

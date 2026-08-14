@@ -143,8 +143,8 @@ namespace IMAF
 
 	struct AppProperties
 	{
-		const char* name;
-		const char* ini_file = nullptr;
+		std::string name;
+		std::string ini_file;
 
 		struct 
 		{
