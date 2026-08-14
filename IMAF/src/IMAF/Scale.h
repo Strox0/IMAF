@@ -21,9 +21,6 @@ namespace IMAF
 		class Scaler
 		{
 		public:
-			Scaler();
-			~Scaler();
-
 			float Val(float x) const;
 			int Val(int x) const;
 
@@ -40,6 +37,10 @@ namespace IMAF
 			void UpdateWindowScales();
 
 		private:
+			friend void InitScaler();
+			Scaler();
+			friend void DestroyScaler();
+			~Scaler();
 
 			void Setup();
 			float GetMonitorScale(int monitor);
