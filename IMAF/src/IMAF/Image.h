@@ -1,6 +1,7 @@
 #pragma once
 #include "imgui.h"
 #include <Windows.h>
+#include <unordered_map>
 
 #undef LoadImage
 
@@ -20,11 +21,13 @@ namespace IMAF
 		ImVec2 GetSize() const;
 
 		unsigned char* GetRawData();
+		const unsigned char* GetRawData() const;
 		bool Error() const;
 
 		void SetImagePosition(const ImVec2& start_pos);
 		void SetImageTint(ImU32 tint_color);
 		void DisplayImGuiImage(const ImVec2& img_size = ImVec2(0,0), const ImVec2& interimage_start = ImVec2(0, 0), const ImVec2& interimage_end = ImVec2(-1, -1), bool use_position = false);
+		void DestroyRetiredContextReferences(HGLRC ctx);
 
 		~Image();
 
@@ -42,15 +45,14 @@ namespace IMAF
 		};
 
 		bool m_error;
+		bool m_registered;
 		bool m_from_buffer;
 		unsigned char* m_data;
-		unsigned int m_texture_data;
+		std::unordered_map<HGLRC, unsigned int> m_texture_data;
 		int m_width;
 		int m_height;
 		ImU32 m_tint;
 		ImVec2 m_start_pos;
-
-		HGLRC m_gl_context;
 	};
 
 	void DisplayImGuiImage(Image& image, const ImVec2& img_size = ImVec2(0, 0), const ImVec2& start_point = ImVec2(0, 0), const ImVec2& end_point = ImVec2(-1, -1));

@@ -3,10 +3,14 @@
 #include <malloc.h>
 #include <string.h>
 
-IMAF::ResourceManager::ResourceManager(int resc_id, const wchar_t* resc_type) : m_id(resc_id),m_type(resc_type),mp_resc(nullptr),m_size(0)
+IMAF::ResourceManager::ResourceManager(int resc_id, const wchar_t* resc_type) : m_id(resc_id),m_type(resc_type),mp_resc(nullptr),m_size(0), m_raii(true), m_error(false)
 {
 	if (GetResource())
+	{
 		m_error = true;
+		m_size = 0;
+		mp_resc = nullptr;
+	}
 }
 
 IMAF::ResourceManager::~ResourceManager()
@@ -37,6 +41,7 @@ void IMAF::ResourceManager::Free()
 	free(mp_resc);
 	mp_resc = nullptr;
 	m_size = 0;
+	m_error = true;
 }
 
 void IMAF::ResourceManager::Owned(bool state)
@@ -52,16 +57,16 @@ bool IMAF::ResourceManager::GetResource()
 
 	HRSRC hRes = FindResourceW(hModule, MAKEINTRESOURCEW(m_id), m_type);
 	if (hRes == NULL)
-	{
-		DWORD err = GetLastError();
 		return true;
-	}
 
-	HGLOBAL hMem = LoadResource(NULL, hRes);
+	HGLOBAL hMem = LoadResource(hModule, hRes);
 	if (hMem == NULL)
 		return true;
 
-	m_size = SizeofResource(NULL, hRes);
+	m_size = SizeofResource(hModule, hRes);
+	if (m_size == 0)
+		return true;
+
 	LPCVOID lpResc = LockResource(hMem);
 	if (lpResc == nullptr)
 		return true;

@@ -9,8 +9,6 @@ namespace IMAF
 			typedef void(__stdcall* glBindBuffer)(unsigned int target, unsigned int buffer);
 		}
 
-		inline FunctionDefs::glBindBuffer glBindBuffer = nullptr;
-
-		bool LoadGlFunctions();
+		FunctionDefs::glBindBuffer LoadGlBindBuffer();
 	}
 }

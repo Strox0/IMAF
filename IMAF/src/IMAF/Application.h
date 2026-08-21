@@ -16,9 +16,7 @@
 #include <vector>
 #include <utility>
 #include <limits>
-
-#define RGB2_IMVEC4(r,g,b) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, 1.0f )
-#define RGBA2_IMVEC4(r,g,b,a) ImVec4( r / 255.0f , g / 255.0f ,b / 255.0f, a > 1 ? a / 255.0f : a )
+#include <stack>
 
 #define FONT_DEFAULT				0
 #define FONT_NORMAL					0
@@ -35,6 +33,26 @@ struct GLFWwindow;
 
 namespace IMAF 
 {
+	constexpr ImVec4 RGB2_IMVEC4(std::uint8_t red, std::uint8_t green, std::uint8_t blue) noexcept
+	{
+		return ImVec4(red / 255.0f, green / 255.0f, blue / 255.0f, 1.0f);
+	}
+
+	constexpr ImVec4 RGBA2_IMVEC4(std::uint8_t red, std::uint8_t green, std::uint8_t blue, std::uint8_t alpha) noexcept
+	{
+		return ImVec4(red / 255.0f, green / 255.0f, blue / 255.0f, alpha / 255.0f);
+	}	
+	
+	constexpr ImVec4 RGBA2_IMVEC4(std::uint8_t red, std::uint8_t green, std::uint8_t blue, float alpha) noexcept
+	{
+		return ImVec4(red / 255.0f, green / 255.0f, blue / 255.0f, alpha);
+	}
+
+	consteval ImVec4 RGBA2_IMVEC4(std::uint8_t red, std::uint8_t green, std::uint8_t blue, int alpha) noexcept
+	{
+		return RGBA2_IMVEC4(red, green, blue, (std::uint8_t)alpha);
+	}
+
 	enum IconFont : unsigned short
 	{
 		FontAwesome6_Regluar,
@@ -95,16 +113,64 @@ namespace IMAF
 
 	struct AppProperties;
 
+	struct ImGuiScaledStyles
+	{
+		ImVec2 WindowPadding;
+		float  WindowRounding;
+		ImVec2 WindowMinSize;
+		float  ChildRounding;
+		float  PopupRounding;
+		ImVec2 FramePadding;
+		float  FrameRounding;
+		ImVec2 ItemSpacing;
+		ImVec2 ItemInnerSpacing;
+		ImVec2 CellPadding;
+		ImVec2 TouchExtraPadding;
+		float  IndentSpacing;
+		float  ColumnsMinSpacing;
+		float  ScrollbarSize;
+		float  ScrollbarRounding;
+		float  GrabMinSize;
+		float  GrabRounding;
+		float  LogSliderDeadzone;
+		float  TabRounding;
+		float  TabMinWidthForCloseButton;
+		ImVec2 SeparatorTextPadding;
+		float  DockingSeparatorSize;
+		ImVec2 DisplayWindowPadding;
+		ImVec2 DisplaySafeAreaPadding;
+		float  MouseCursorScale;
+
+		void CopyStyles(const ImGuiStyle& style);
+		void AssignUnchanged(const ImGuiScaledStyles& ref, ImGuiStyle& style);
+	};
+
+	struct GuiInfo
+	{
+		std::string window_id;
+		ImGuiScaledStyles stored_style;
+		ImGuiScaledStyles new_style;
+		bool style_changed;
+		float scale_mult;
+	};
+
 	struct Titlebar_Properties
 	{
 		//edge offset is the distance from the edge of the window that is specified in align to the first button
 		//0.f with right align will place the first button at the right edge of the window
 		//center align will ignore the edge offset
-		void AddButton(unsigned short group_index, const ButtonSpec& button_spec, float edge_offset = 0.f, GroupAlign align = GroupAlign::Null, int spacing = 0)
+		void AddButton(unsigned short group_index, const ButtonSpec& button_spec)
 		{
 			if (button_groups.size() > group_index)
 			{
 				button_groups[group_index].buttons.push_back(button_spec);
+			}
+		}
+
+		void SetGroupProperties(unsigned short group_index, float edge_offset = 0.f, GroupAlign align = GroupAlign::Null, int spacing = 0)
+		{
+			if (button_groups.size() > group_index)
+			{
 				button_groups[group_index].edge_offset = edge_offset == 0.f ? button_groups[group_index].edge_offset : edge_offset;
 				button_groups[group_index].align = align == GroupAlign::Null ? button_groups[group_index].align : align;
 				button_groups[group_index].inner_spacing = spacing == 0 ? button_groups[group_index].inner_spacing : spacing;
@@ -162,6 +228,9 @@ namespace IMAF
 
 		int min_width = 0;
 		int min_height = 0;
+
+		int max_height = 0;
+		int max_width = 0;
 		
 		float font_size = 18;
 		IconFont font_icon = IconFont::FontAwesome6_Solid;
@@ -196,15 +265,8 @@ namespace IMAF
 		Application& operator=(const Application&) = delete;
 		Application(Application&&) = delete;
 		Application& operator=(Application&&) = delete;
-		static Application& Create(const AppProperties& props = AppProperties())
-		{
-			static Application instance(props);
-			return instance;
-		}
-		static Application& Get()
-		{
-			return Create();
-		}
+		static Application& Create(const AppProperties& props = AppProperties());
+		static Application& Get();
 		~Application();
 
 		//Will run once before the window rendering but after the backend initalization
@@ -232,8 +294,6 @@ namespace IMAF
 		//Firstrun should always be set to false, unless multiple setups are needed, in which case the first run should be checked inside the function
 		void AddDefDockingSetup(std::function<void(ImGuiID,bool&)> setup_func);
 		ImGuiID GetDockspaceId() const;
-
-		void __CallScaleCallback(float x, float y);
 
 		friend void End();
 		friend bool Begin(const char* name, bool* p_open, ImGuiWindowFlags flags);
@@ -278,6 +338,13 @@ namespace IMAF
 			}
 		};
 
+		struct Visibility
+		{
+			std::atomic_bool change_state;
+			std::atomic_bool hidden;
+			std::atomic_bool hide;
+		};
+
 		bool Init();
 		bool CreateApplication();
 		void Shutdown(bool failure);
@@ -287,19 +354,24 @@ namespace IMAF
 
 		void BeginRenderDockspace();
 
+		void UpdateTitlebarScale();
 		void UpdateGLFWTitlebarRects();
 
 		IMAF::Application::ScreenRect GetMainApplicationScreen();
 
 		const std::vector<ImFont*>& GetClosestFontSet(float dpi_scale, float threshold = std::numeric_limits<float>::infinity());
 
+		friend void DPICallBack(GLFWwindow* window, float xscale, float yscale);
+		void CallScaleCallback(float x, float y);
+
 	private:
 		GLFWwindow* mp_window = nullptr;
 		AppProperties m_props;
+		Titlebar_Properties m_unscaled_titlebar_props;
 		ImGuiID m_dockspace_id = 0;
 
 		std::atomic_bool m_should_exit = false;
-		std::atomic_bool m_hidden = false;
+		Visibility m_visibility;
 		std::atomic_bool m_shutdown_called = false;
 
 		std::mutex m_panels_mutex;
@@ -312,7 +384,7 @@ namespace IMAF
 
 		ScreenRect m_screen_rect;
 		float m_dpi_scale = 1.0f;
-		float m_detached_window_scale = 1.0f;
+		std::stack<GuiInfo> m_gui_stack;
 
 		std::vector<std::pair<float,std::vector<ImFont*>>> m_fonts;
 	};

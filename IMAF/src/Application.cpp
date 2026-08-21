@@ -7,11 +7,11 @@
 #include "GLES3/gl3.h"
 
 #define GLFW_EXPOSE_NATIVE_WIN32
+#define GLFW_EXPOSE_NATIVE_WGL
 #include "GLFW/glfw3native.h"
 
 #include "IMAF/fonts.h"
 #include "IMAF/Image.h"
-#include "IMAF/GLLoader.h"
 #include "IMAF/Textures.h"
 
 #include <string>
@@ -33,35 +33,48 @@
 #include <vector>
 #include <cstdlib>
 #include <utility>
+#include <stdexcept>
 
-IMAF::Application* g_app = nullptr;
-
-// ISSUE 22: GLFW diagnostics are discarded and library initialization failures terminate the host process instead of returning structured errors.
-static void glfw_error_callback(int error, const char* description) {}
-
-static void __DPICallBack(GLFWwindow* window, float xscale, float yscale)
+namespace
 {
-	IMAF::Application* app = (IMAF::Application*)glfwGetWindowUserPointer(window);
-	app->__CallScaleCallback(xscale, yscale);
+	IMAF::Application* g_app = nullptr;
+
+	enum class ApplicationState
+	{
+		Uninitialized,
+		Active,
+		Destroyed
+	};
+
+	std::mutex s_app_mutex;
+	ApplicationState s_app_state = ApplicationState::Uninitialized;
+
+	void glfw_error_callback(int error, const char* description) {}
+
+	struct less_scale_font_pair
+	{
+		using sfp = std::pair<float, std::vector<ImFont*>>;
+		_NODISCARD constexpr bool operator()(const sfp& _Left, const sfp& _Right) const
+		{
+			return _Left.first < _Right.first;
+		}
+
+		_NODISCARD constexpr bool operator()(const sfp& _Left, const float& _Right) const
+		{
+			return _Left.first < _Right;
+		}
+	};
 }
-
-struct less_scale_font_pair
-{
-	using sfp = std::pair<float, std::vector<ImFont*>>;
-	_NODISCARD constexpr bool operator()(const sfp& _Left, const sfp& _Right) const
-	{
-		return _Left.first < _Right.first;
-	}
-
-	_NODISCARD constexpr bool operator()(const sfp& _Left, const float& _Right) const
-	{
-		return _Left.first < _Right;
-	}
-};
 
 namespace IMAF
 {
-	Application::Application(const AppProperties& props) : m_props(props) 
+	static void DPICallBack(GLFWwindow* window, float xscale, float yscale)
+	{
+		IMAF::Application* app = (IMAF::Application*)glfwGetWindowUserPointer(window);
+		app->CallScaleCallback(xscale, yscale);
+	}
+
+	Application::Application(const AppProperties& props) : m_props(props), m_unscaled_titlebar_props(m_props.custom_titlebar_props)
 	{
 		if (m_props.borderless_fullscreen)
 			m_props.popup = true;
@@ -84,9 +97,43 @@ namespace IMAF
 		g_app = this;
 	}
 
+	Application& Application::Create(const AppProperties& props)
+	{
+		std::lock_guard<std::mutex> m(s_app_mutex);
+
+		if (s_app_state != ApplicationState::Uninitialized)
+			throw std::logic_error("IMAF::Application has already been created or creation is in progress");
+
+		try
+		{
+			static Application instance(props);
+
+			s_app_state = ApplicationState::Active;
+			return instance;
+		}
+		catch (...)
+		{
+			s_app_state = ApplicationState::Uninitialized;
+			throw;
+		}
+	}
+
+	Application& Application::Get()
+	{
+		std::lock_guard<std::mutex> m(s_app_mutex);
+		if (s_app_state != ApplicationState::Active || g_app == nullptr)
+			throw std::logic_error("IMAF::Application has not been created");
+
+		return *g_app;
+	}
+
 	Application::~Application()
 	{
-		g_app = nullptr;
+		{
+			std::lock_guard m(s_app_mutex);
+			g_app = nullptr;
+			s_app_state = ApplicationState::Destroyed;
+		}
 		Shutdown(false);
 	}
 
@@ -135,6 +182,7 @@ namespace IMAF
 			int screen_height = GetSystemMetrics(SM_CYSCREEN);
 			m_props.width.abosulte = screen_width * 0.65f;
 			m_props.height.abosulte = screen_height * 0.75f;
+			m_props.relative_size = true;
 		}
 		
 		if (m_props.custom_titlebar)
@@ -216,7 +264,7 @@ namespace IMAF
 		m_screen_rect = GetMainApplicationScreen();
 		SizeRect size_calc_screen(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
 
-		if (m_screen_rect.GetSize() != size_calc_screen)
+		if (m_props.relative_size && m_screen_rect.GetSize() != size_calc_screen)
 		{
 			m_props.width.abosulte = m_screen_rect.GetSize().width * m_props.width.relative;
 			m_props.height.abosulte = m_screen_rect.GetSize().height * m_props.height.relative;
@@ -229,22 +277,14 @@ namespace IMAF
 
 		IMAF::Utils::Textures::RegisterContext(wglGetCurrentContext());
 
-		if (m_props.custom_titlebar)
+		if ((m_props.min_height != 0 || m_props.min_width != 0 || m_props.max_height != 0 || m_props.max_width != 0) && m_props.resizeable)
 		{
-			UpdateGLFWTitlebarRects();
-
-			glfwSetCustomTitleBar(mp_window, true);
-
-			if (m_props.custom_titlebar_props.titlebar_draw_f == nullptr)
-				m_props.custom_titlebar_props.titlebar_draw_f = DefCustomTitlebarDraw;
-
-			if (m_props.custom_titlebar_props.titlebar_scaling_f == nullptr)
-				m_props.custom_titlebar_props.titlebar_scaling_f = DefCustomTitlebarScaling;
-		}
-
-		if (m_props.min_height != 0 && m_props.min_width != 0 && m_props.resizeable)
-		{
-			glfwSetWindowSizeLimits(mp_window, m_props.min_width, m_props.min_height, GLFW_DONT_CARE, GLFW_DONT_CARE);
+			glfwSetWindowSizeLimits(mp_window, 
+				m_props.min_width != 0 ? m_props.min_width : GLFW_DONT_CARE,
+				m_props.min_height != 0 ? m_props.min_height : GLFW_DONT_CARE,
+				m_props.max_width != 0 ? m_props.max_width : GLFW_DONT_CARE, 
+				m_props.max_height != 0 ? m_props.max_height : GLFW_DONT_CARE
+			);
 		}
 
 		if (m_props.center_window && !m_props.fullscreen)
@@ -346,7 +386,7 @@ namespace IMAF
 			Scale::InitScaler();
 			mp_scaler = Scale::GetScaler();
 			glfwSetWindowSize(mp_window, m_props.width.abosulte, m_props.height.abosulte);
-			glfwSetWindowContentScaleCallback(mp_window, __DPICallBack);
+			glfwSetWindowContentScaleCallback(mp_window, DPICallBack);
 		}
 
 		float xscale, yscale;
@@ -359,6 +399,14 @@ namespace IMAF
 		if (mp_scaler)
 			mp_scaler->SetMainWindowScale(dpi_scale);
 
+		if (m_props.custom_titlebar)
+		{
+			glfwSetCustomTitleBar(mp_window, true);
+
+			UpdateTitlebarScale();
+			UpdateGLFWTitlebarRects();
+		}
+
 		if (m_props.dpi_aware && !m_props.relative_size)
 		{
 			glfwSetWindowSize(mp_window, m_props.width.abosulte * xscale, m_props.height.abosulte * yscale);
@@ -366,8 +414,12 @@ namespace IMAF
 
 		if (m_props.borderless_fullscreen)
 		{
-			glfwSetWindowSize(mp_window, platform_io.Monitors[0].MainSize.x-1, platform_io.Monitors[0].MainSize.y);
-			glfwSetWindowPos(mp_window, 0, 0);
+			const SizeRect& screen_size = m_screen_rect.GetSize();
+			if (screen_size.width > 0 && screen_size.height > 0)
+			{
+				glfwSetWindowSize(mp_window, screen_size.width - 1, screen_size.height);
+				glfwSetWindowPos(mp_window, m_screen_rect.left, m_screen_rect.top);
+			}
 		}
 
 		glfwShowWindow(mp_window);
@@ -408,9 +460,24 @@ namespace IMAF
 		{
 			glfwPollEvents();
 
-			if (m_hidden.load())
+			if (m_visibility.change_state.exchange(false))
 			{
-				Sleep(100);
+				const bool hide = m_visibility.hide.load();
+
+				if (hide)
+					glfwHideWindow(mp_window);
+				else
+					glfwShowWindow(mp_window);
+
+				m_visibility.hidden.store(hide);
+			}
+
+			if (m_visibility.hidden.load())
+			{
+				if (m_should_exit.load())
+					continue;
+
+				m_visibility.change_state.wait(false);
 				continue;
 			}
 
@@ -457,8 +524,11 @@ namespace IMAF
 	void Application::Shutdown(bool failure)
 	{
 		{
-			std::lock_guard m(m_panels_mutex);
-			m_panels.clear();
+			std::vector<std::shared_ptr<Panel>> panels;
+			{
+				std::lock_guard m(m_panels_mutex);
+				panels.swap(m_panels);
+			}
 		}
 
 		IMAF::Utils::Textures::PreformDelete();
@@ -530,6 +600,11 @@ namespace IMAF
 		{
 			GLFWwindow* backup_current_context = glfwGetCurrentContext();
 			ImGui::UpdatePlatformWindows();
+			for (ImGuiViewport* viewport : ImGui::GetPlatformIO().Viewports)
+			{
+				if (viewport->PlatformHandle != nullptr)
+					IMAF::Utils::Textures::RegisterSharedContext(glfwGetWGLContext(mp_window), glfwGetWGLContext((GLFWwindow*)(viewport->PlatformHandle)));
+			}
 			ImGui::RenderPlatformWindowsDefault();
 			glfwMakeContextCurrent(backup_current_context);
 		}
@@ -545,8 +620,8 @@ namespace IMAF
 		props.custom_titlebar = false;
 		props.font_size = 18;
 		props.fullscreen = false;
-		props.height.relative = 0.75;
-		props.width.relative = 0.65;
+		props.height.relative = 0.75f;
+		props.width.relative = 0.65f;
 		props.resizeable = true;
 		props.name = "My Application";
 		props.imgui_docking = false;
@@ -562,6 +637,8 @@ namespace IMAF
 		props.borderless_fullscreen = false;
 		props.min_height = 0;
 		props.min_width = 0;
+		props.max_height = 0;
+		props.max_width = 0;
 		props.dockspace_color = ImVec4(0.09f, 0.09f, 0.10f, 1.00f);
 		props.icons.clear();
 		props.custom_titlebar_props = Titlebar_Properties();
@@ -572,21 +649,18 @@ namespace IMAF
 
 	void Application::SetTitlebarProperties(const Titlebar_Properties& props)
 	{
-		m_props.custom_titlebar_props = props;
+		m_unscaled_titlebar_props = props;
 
-		if (m_props.custom_titlebar_props.titlebar_draw_f == nullptr)
-			m_props.custom_titlebar_props.titlebar_draw_f = DefCustomTitlebarDraw;
-
-		if (m_props.custom_titlebar_props.titlebar_scaling_f == nullptr)
-			m_props.custom_titlebar_props.titlebar_scaling_f = DefCustomTitlebarScaling;
-
+		UpdateTitlebarScale();
 		if (mp_window != nullptr)
 			UpdateGLFWTitlebarRects();
 	}
 
 	void Application::Exit()
 	{
-		m_should_exit = true;
+		m_should_exit.store(true);
+		m_visibility.change_state.store(true);
+		m_visibility.change_state.notify_all();
 	}
 
 	void Application::BeginRenderDockspace()
@@ -611,7 +685,7 @@ namespace IMAF
 		ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
 			| ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoDocking;
 
-		if (m_props.gen_ini)
+		if (!m_props.gen_ini)
 			flags |= ImGuiWindowFlags_NoSavedSettings;
 		
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
@@ -630,6 +704,20 @@ namespace IMAF
 
 		ImGui::PopStyleVar(2);
 		ImGui::PopStyleColor(2);
+	}
+
+	void Application::UpdateTitlebarScale()
+	{
+		m_props.custom_titlebar_props = m_unscaled_titlebar_props;
+
+		if (m_props.custom_titlebar_props.titlebar_draw_f == nullptr)
+			m_props.custom_titlebar_props.titlebar_draw_f = DefCustomTitlebarDraw;
+
+		if (m_props.custom_titlebar_props.titlebar_scaling_f == nullptr)
+			m_props.custom_titlebar_props.titlebar_scaling_f = DefCustomTitlebarScaling;
+
+		if (m_props.dpi_aware && mp_scaler != nullptr)
+			m_props.custom_titlebar_props.titlebar_scaling_f(&m_props.custom_titlebar_props, m_dpi_scale);
 	}
 
 	void Application::UpdateGLFWTitlebarRects()
@@ -695,17 +783,9 @@ namespace IMAF
 
 	void IMAF::Application::ChangeWindowVisibility(bool visible)
 	{
-		visible = !visible;
-		if (visible && !m_hidden.load())
-		{
-			m_hidden.store(visible);
-			glfwHideWindow(mp_window);
-		}
-		else if (!visible && m_hidden.load())
-		{ 
-			m_hidden.store(visible); 
-			glfwShowWindow(mp_window);
-		}
+		m_visibility.hide.store(!visible);
+		m_visibility.change_state.store(true);
+		m_visibility.change_state.notify_one();
 	}
 
 	IMAF::Application::ScreenRect Application::GetMainApplicationScreen()
@@ -721,7 +801,6 @@ namespace IMAF
 	{
 		auto it = std::lower_bound(m_fonts.begin(), m_fonts.end(), dpi_scale, less_scale_font_pair{});
 
-		float best;
 		if (it == m_fonts.end())
 			it--;
 		else if (it != m_fonts.begin())
@@ -738,8 +817,23 @@ namespace IMAF
 
 	void Application::RemovePanel(uint64_t id)
 	{
-		std::lock_guard mtp(m_panels_mutex);
-		std::erase_if(m_panels, [id](std::shared_ptr<IMAF::Panel> ptr) -> bool { return ptr->GetId() == id ? true : false; });
+		std::shared_ptr<IMAF::Panel> panel;
+		{
+			std::lock_guard m(m_panels_mutex);
+
+			auto it = m_panels.begin();
+			while (it != m_panels.end())
+			{
+				if ((*it)->GetId() == id)
+				{
+					panel = *it;
+					m_panels.erase(it);
+					break;
+				}
+				++it;
+			}
+		}
+		panel.reset();
 	}
 
 	GLFWwindow* Application::GetWindowHandle() const
@@ -752,11 +846,13 @@ namespace IMAF
 		mp_def_docking = setup_func;
 	}
 
-	void Application::__CallScaleCallback(float x, float y)
+	void Application::CallScaleCallback(float x, float y)
 	{
 		float dpi_scale = min(x,y);
 		if (dpi_scale != m_dpi_scale)
 		{
+			ImGui::GetIO().FontDefault = GetClosestFontSet(dpi_scale)[FONT_NORMAL];
+
 			if (mp_scaler)
 			{
 				mp_scaler->SetMainWindowScale(dpi_scale);
@@ -770,9 +866,7 @@ namespace IMAF
 
 			if (m_props.custom_titlebar)
 			{
-				if (m_props.custom_titlebar_props.titlebar_scaling_f)
-					m_props.custom_titlebar_props.titlebar_scaling_f(&m_props.custom_titlebar_props, style_scale);
-
+				UpdateTitlebarScale();
 				UpdateGLFWTitlebarRects();
 			}
 		}
@@ -832,8 +926,9 @@ namespace IMAF
 			}
 			}
 
-			for (const auto& btn : props->button_groups[i].buttons)
+			for (size_t j = 0; j < props->button_groups[i].buttons.size(); j++)
 			{
+				const auto& btn = props->button_groups[i].buttons[j];
 				ImVec2 button_pos;
 				ImVec2 button_size;
 				button_pos.x = start_pos;
@@ -873,8 +968,8 @@ namespace IMAF
 
 				if (props->button_groups[i].align == IMAF::GroupAlign::Center || props->button_groups[i].align == IMAF::GroupAlign::Left)
 					start_pos += btn.width + props->button_groups[i].inner_spacing;
-				else if (props->button_groups[i].align == IMAF::GroupAlign::Right)
-					start_pos -= btn.width + props->button_groups[i].inner_spacing;
+				else if (props->button_groups[i].align == IMAF::GroupAlign::Right && j + 1 < props->button_groups[i].buttons.size())
+					start_pos -= props->button_groups[i].buttons[j + 1].width + props->button_groups[i].inner_spacing;
 			}
 		}
 
@@ -946,8 +1041,9 @@ namespace IMAF
 			}
 			}
 
-			for (const auto& btn : props->button_groups[i].buttons)
+			for (size_t j = 0; j < props->button_groups[i].buttons.size(); j++)
 			{
+				const auto& btn = props->button_groups[i].buttons[j];
 				ImVec2 button_pos;
 				ImVec2 button_size;
 				button_pos.x = start_pos;
@@ -989,8 +1085,8 @@ namespace IMAF
 
 				if (props->button_groups[i].align == IMAF::GroupAlign::Center || props->button_groups[i].align == IMAF::GroupAlign::Left)
 					start_pos += btn.width + props->button_groups[i].inner_spacing;
-				else if (props->button_groups[i].align == IMAF::GroupAlign::Right)
-					start_pos -= btn.width + props->button_groups[i].inner_spacing;
+				else if (props->button_groups[i].align == IMAF::GroupAlign::Right && j + 1 < props->button_groups[i].buttons.size())
+					start_pos -= props->button_groups[i].buttons[j + 1].width + props->button_groups[i].inner_spacing;
 			}
 		}
 
@@ -1035,6 +1131,8 @@ namespace IMAF
 
 		for (auto& i : out_props->button_groups)
 		{
+			i.inner_spacing *= scale;
+
 			for (auto& i : i.buttons)
 			{
 				i.height *= scale;
@@ -1049,15 +1147,33 @@ namespace IMAF
 		if (g_app->mp_scaler == nullptr)
 			return ImGui::Begin(name, p_open, flags);
 
+		GuiInfo gui_info;
+		gui_info.window_id = g_app->mp_scaler->GetCurrentID();
+		gui_info.style_changed = false;
+
 		g_app->mp_scaler->SetCurrentID(name);
 
 		const std::vector<ImFont*>& fonts = g_app->GetClosestFontSet(g_app->mp_scaler->GetWindowScale(name));
 		ImGui::PushFont(fonts[FONT_NORMAL]);
 
-		g_app->m_detached_window_scale = g_app->mp_scaler->GetWindowScale(name) / g_app->m_dpi_scale;
-		
-		if (g_app->m_detached_window_scale != 1.f)
-			ImGui::GetStyle().ScaleAllSizes(g_app->m_detached_window_scale);
+		float curr_window_scale = g_app->mp_scaler->GetWindowScale(name);
+		gui_info.scale_mult = curr_window_scale;
+
+		float prev_scale = g_app->m_dpi_scale;
+
+		if (!g_app->m_gui_stack.empty())
+			prev_scale = g_app->m_gui_stack.top().scale_mult;
+
+		if (curr_window_scale != prev_scale)
+		{
+			gui_info.style_changed = true;
+			gui_info.stored_style.CopyStyles(ImGui::GetStyle());
+
+			ImGui::GetStyle().ScaleAllSizes(curr_window_scale / prev_scale);
+			gui_info.new_style.CopyStyles(ImGui::GetStyle());
+		}
+
+		g_app->m_gui_stack.push(gui_info);
 
 		bool ret = ImGui::Begin(name, p_open, flags);
 		
@@ -1075,7 +1191,7 @@ namespace IMAF
 	{
 		const std::vector<ImFont*>* fonts = nullptr;
 		if (g_app->mp_scaler == nullptr)
-			fonts = &g_app->m_fonts.begin()->second;
+			fonts = &g_app->GetClosestFontSet(g_app->m_dpi_scale);
 		else
 			fonts = &g_app->GetClosestFontSet(g_app->mp_scaler->GetCurrentScale());
 
@@ -1095,14 +1211,16 @@ namespace IMAF
 
 		ImGui::PopFont();
 
-		g_app->mp_scaler->SetCurrentID(std::string());
+		GuiInfo gui_info(std::move(g_app->m_gui_stack.top()));
+		g_app->m_gui_stack.pop();
+
+		g_app->mp_scaler->SetCurrentID(gui_info.window_id);
 
 		ImGui::End();
 
-		if (g_app->m_detached_window_scale != 1.f)
+		if (gui_info.style_changed)
 		{
-			ImGui::GetStyle().ScaleAllSizes(1.f / g_app->m_detached_window_scale);
-			g_app->m_detached_window_scale = 1.f;
+			gui_info.stored_style.AssignUnchanged(gui_info.new_style, ImGui::GetStyle());
 		}
 	}
 
@@ -1224,5 +1342,112 @@ namespace IMAF
 		colors[ImGuiCol_ResizeGrip] = ImVec4(0.82f, 0.82f, 0.82f, 0.35f);
 		colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.71f, 0.71f, 0.71f, 0.67f);
 		colors[ImGuiCol_ResizeGripActive] = ImVec4(0.30f, 0.30f, 0.30f, 0.94f);
+	}
+
+	void ImGuiScaledStyles::CopyStyles(const ImGuiStyle& style)
+	{
+		WindowPadding = style.WindowPadding;
+		WindowRounding = style.WindowRounding;
+		WindowMinSize = style.WindowMinSize;
+		ChildRounding = style.ChildRounding;
+		PopupRounding = style.PopupRounding;
+		FramePadding = style.FramePadding;
+		FrameRounding = style.FrameRounding;
+		ItemSpacing = style.ItemSpacing;
+		ItemInnerSpacing = style.ItemInnerSpacing;
+		CellPadding = style.CellPadding;
+		TouchExtraPadding = style.TouchExtraPadding;
+		IndentSpacing = style.IndentSpacing;
+		ColumnsMinSpacing = style.ColumnsMinSpacing;
+		ScrollbarSize = style.ScrollbarSize;
+		ScrollbarRounding = style.ScrollbarRounding;
+		GrabMinSize = style.GrabMinSize;
+		GrabRounding = style.GrabRounding;
+		LogSliderDeadzone = style.LogSliderDeadzone;
+		TabRounding = style.TabRounding;
+		TabMinWidthForCloseButton = style.TabMinWidthForCloseButton;
+		SeparatorTextPadding = style.SeparatorTextPadding;
+		DockingSeparatorSize = style.DockingSeparatorSize;
+		DisplayWindowPadding = style.DisplayWindowPadding;
+		DisplaySafeAreaPadding = style.DisplaySafeAreaPadding;
+		MouseCursorScale = style.MouseCursorScale;
+	}
+
+	void ImGuiScaledStyles::AssignUnchanged(const ImGuiScaledStyles& ref, ImGuiStyle& style)
+	{
+		if (style.WindowPadding == ref.WindowPadding)
+			style.WindowPadding = WindowPadding;
+
+		if (style.WindowRounding == ref.WindowRounding)
+			style.WindowRounding = WindowRounding;
+
+		if (style.WindowMinSize == ref.WindowMinSize)
+			style.WindowMinSize = WindowMinSize;
+
+		if (style.ChildRounding == ref.ChildRounding)
+			style.ChildRounding = ChildRounding;
+
+		if (style.PopupRounding == ref.PopupRounding)
+			style.PopupRounding = PopupRounding;
+
+		if (style.FramePadding == ref.FramePadding)
+			style.FramePadding = FramePadding;
+
+		if (style.FrameRounding == ref.FrameRounding)
+			style.FrameRounding = FrameRounding;
+
+		if (style.ItemSpacing == ref.ItemSpacing)
+			style.ItemSpacing = ItemSpacing;
+
+		if (style.ItemInnerSpacing == ref.ItemInnerSpacing)
+			style.ItemInnerSpacing = ItemInnerSpacing;
+
+		if (style.CellPadding == ref.CellPadding)
+			style.CellPadding = CellPadding;
+
+		if (style.TouchExtraPadding == ref.TouchExtraPadding)
+			style.TouchExtraPadding = TouchExtraPadding;
+
+		if (style.IndentSpacing == ref.IndentSpacing)
+			style.IndentSpacing = IndentSpacing;
+
+		if (style.ColumnsMinSpacing == ref.ColumnsMinSpacing)
+			style.ColumnsMinSpacing = ColumnsMinSpacing;
+
+		if (style.ScrollbarSize == ref.ScrollbarSize)
+			style.ScrollbarSize = ScrollbarSize;
+
+		if (style.ScrollbarRounding == ref.ScrollbarRounding)
+			style.ScrollbarRounding = ScrollbarRounding;
+
+		if (style.GrabMinSize == ref.GrabMinSize)
+			style.GrabMinSize = GrabMinSize;
+
+		if (style.GrabRounding == ref.GrabRounding)
+			style.GrabRounding = GrabRounding;
+
+		if (style.LogSliderDeadzone == ref.LogSliderDeadzone)
+			style.LogSliderDeadzone = LogSliderDeadzone;
+
+		if (style.TabRounding == ref.TabRounding)
+			style.TabRounding = TabRounding;
+
+		if (style.TabMinWidthForCloseButton == ref.TabMinWidthForCloseButton)
+			style.TabMinWidthForCloseButton = TabMinWidthForCloseButton;
+
+		if (style.SeparatorTextPadding == ref.SeparatorTextPadding)
+			style.SeparatorTextPadding = SeparatorTextPadding;
+
+		if (style.DockingSeparatorSize == ref.DockingSeparatorSize)
+			style.DockingSeparatorSize = DockingSeparatorSize;
+
+		if (style.DisplayWindowPadding == ref.DisplayWindowPadding)
+			style.DisplayWindowPadding = DisplayWindowPadding;
+
+		if (style.DisplaySafeAreaPadding == ref.DisplaySafeAreaPadding)
+			style.DisplaySafeAreaPadding = DisplaySafeAreaPadding;
+
+		if (style.MouseCursorScale == ref.MouseCursorScale)
+			style.MouseCursorScale = MouseCursorScale;
 	}
 }

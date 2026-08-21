@@ -23,12 +23,12 @@ namespace IMAF {
 	private:
 		bool GetResource();
 	private:
-		bool m_raii = true;
+		bool m_raii;
 		int m_id;
 		const wchar_t* m_type;
 		void* mp_resc;
 		unsigned long m_size;
-		bool m_error = false;
+		bool m_error;
 	};
 
 }

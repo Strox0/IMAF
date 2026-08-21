@@ -9,6 +9,8 @@
 #include <unordered_set>
 #include <atomic>
 #include <thread>
+#include <memory>
+#include <variant>
 
 namespace IMAF
 {
@@ -37,22 +39,40 @@ namespace IMAF
 
 
 		private:
-			void Run();
-			void End();
 
-		private:
-			struct EventPair
+			struct EventJob
 			{
 				EventCallback callback;
 				SubID sub_id;
-				EventPair(EventCallback cb, SubID id) : callback(cb), sub_id(id) {};
+				bool active;
+				EventJob(EventCallback cb, SubID id) : callback(cb), sub_id(id), active(true) {};
 			};
 
+			struct UnsubSignal
+			{
+				std::condition_variable cv;
+				std::mutex mutex;
+				bool complete = false;
+			};
+
+			struct Unsub
+			{
+				EventSubID sub_id;
+				std::shared_ptr<UnsubSignal> signal;
+			};
+
+			using Job = std::variant<Event, Unsub>;
+
 			EventHandler();
-			std::queue<Event> m_event_pool;
-			std::unordered_map<EventID, std::vector<EventPair>> m_events_map;
+
+			void Run();
+			void End();
+			void RemoveSub(const EventSubID& sub_id);
+			void ProcessEvent(const Event& event);
+
+			std::queue<Job> m_job_pool;
+			std::unordered_map<EventID, std::vector<std::shared_ptr<EventJob>>> m_events_map;
 			std::unordered_set<SubID> m_ids;
-			std::unordered_map<SubID, size_t> m_position_map;
 			IMAF::Utils::Random::Number<IMAF::Events::SubID> m_random;
 
 			std::condition_variable m_cv;
@@ -60,6 +80,8 @@ namespace IMAF
 			std::mutex m_mutex_events;
 			std::mutex m_mutex_ids;
 			std::atomic_bool m_end = false;
+			std::thread::id m_worker_thread_id;
+			bool m_worker_stopped = false;
 			std::thread m_t;
 		};
 	}

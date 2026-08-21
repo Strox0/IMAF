@@ -6,8 +6,10 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 
-#include "IMAF/fonts.h"
 #include "IMAF/Image.h"
+#include <IMAF/IconsFontAwesome6.h>
+#include <GLFW/glfw3.h>
+#include <memory>
 
 class ExampleLayer : public IMAF::Panel
 {
@@ -61,7 +63,7 @@ void dock_setup(ImGuiID dockspace_id,bool& firstrun)
 	firstrun = false;
 }
 
-int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ PWSTR pCmdLine, _In_ int nCmdShow)
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
 	IMAF::AppProperties props;
 	props.resizeable = true;
@@ -72,26 +74,20 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	props.relative_size = true;
 	props.custom_titlebar = true;
 	props.transparency = 0.f;
-	props.dockspace_color = RGBA2_IMVEC4(28, 28, 28, 0.5f);
+	props.dockspace_color = IMAF::RGBA2_IMVEC4(28, 28, 28, 0.5f);
 	
 	props.icons.push_back("./account_circle_16dp_E3E3E3.png");
 	props.icons.push_back("./account_circle_32dp_E3E3E3.png");
 	props.icons.push_back("./account_circle_48dp_E3E3E3.png");
 
 	props.custom_titlebar_props.top_border = IMAF::TopBorder::Thin;
+	props.custom_titlebar_props.height = IMAF::Val(40);
+	props.custom_titlebar_props.AddButton(0, IMAF::ButtonSpec(IMAF::Val(30), IMAF::Val(30), IMAF::Val(5), IMAF::ButtonType::Close));
+	props.custom_titlebar_props.AddButton(0, IMAF::ButtonSpec(IMAF::Val(30), IMAF::Val(30), IMAF::Val(5), IMAF::ButtonType::Maximize));
+	props.custom_titlebar_props.AddButton(0, IMAF::ButtonSpec(IMAF::Val(30), IMAF::Val(30), IMAF::Val(5), IMAF::ButtonType::Minimize));
+	props.custom_titlebar_props.SetGroupProperties(0, 0.001f, IMAF::GroupAlign::Right, IMAF::Val(5));
 
 	IMAF::Application& app = IMAF::Application::Create(props);
-
-	app.SetUp([&app](const IMAF::AppProperties& props, GLFWwindow* window)
-		{
-			IMAF::Titlebar_Properties titlebar_props = props.custom_titlebar_props;
-			titlebar_props.height = IMAF::Val(40);
-			titlebar_props.AddButton(0, IMAF::ButtonSpec(IMAF::Val(30), IMAF::Val(30), IMAF::Val(5), IMAF::ButtonType::Close));
-			titlebar_props.AddButton(0, IMAF::ButtonSpec(IMAF::Val(30), IMAF::Val(30), IMAF::Val(5), IMAF::ButtonType::Maximize));
-			titlebar_props.AddButton(0, IMAF::ButtonSpec(IMAF::Val(30), IMAF::Val(30), IMAF::Val(5), IMAF::ButtonType::Minimize), 0.001f, IMAF::GroupAlign::Right, IMAF::Val(5));
-			app.SetTitlebarProperties(titlebar_props);
-		}
-	);
 
 	std::shared_ptr<ExampleLayer> ptr = std::make_shared<ExampleLayer>();
 	app.AddPanel(ptr);

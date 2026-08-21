@@ -14,7 +14,11 @@ namespace IMAF
 			void QueueDelete(HGLRC ctx, unsigned int tid);
 			void PreformDelete();
 			void RegisterContext(HGLRC ctx);
+			void RegisterSharedContext(HGLRC owner_ctx, HGLRC ctx);
 			void RetireContext(HGLRC ctx);
+			HGLRC GetOwnerContext(HGLRC ctx);
+			void RegisterImage(void* image);
+			void RetireImage(void* image);
 		}
 	}
 }

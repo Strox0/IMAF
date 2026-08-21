@@ -7,6 +7,8 @@
 #include <imgui_internal.h>
 #include <cassert>
 #include <string>
+#include <unordered_set>
+#include <unordered_map>
 
 IMAF::Scale::Scaler* g_scaler = nullptr;
 
@@ -203,21 +205,33 @@ void IMAF::Scale::Scaler::Setup()
 void IMAF::Scale::Scaler::UpdateWindowScales()
 {
 	ImGuiContext* ctx = ImGui::GetCurrentContext();
+	std::unordered_set<std::string> active_windows;
 
 	for (const auto& window : ctx->Windows)
 	{
+		if (!window->Active)
+			continue;
+
+		std::string window_name(window->Name);
+		active_windows.insert(window_name);
+
 		if (!window->ViewportOwned)
 		{
-			bool fresh = m_windows[std::string(window->Name)].first != m_main_window_scale;
-			m_windows[std::string(window->Name)].first = m_main_window_scale;
-			m_windows[std::string(window->Name)].second = fresh;
+			bool fresh = m_windows[window_name].first != m_main_window_scale;
+			m_windows[window_name].first = m_main_window_scale;
+			m_windows[window_name].second = fresh;
 		}
 		else
 		{
 			float scale = GetMonitorScale(window->Viewport->PlatformMonitor);
-			bool fresh = m_windows[std::string(window->Name)].first != scale;
-			m_windows[std::string(window->Name)].first = scale;
-			m_windows[std::string(window->Name)].second = fresh;
+			bool fresh = m_windows[window_name].first != scale;
+			m_windows[window_name].first = scale;
+			m_windows[window_name].second = fresh;
 		}
 	}
+
+	std::erase_if(m_windows, [&active_windows](const auto& window)
+		{
+			return !active_windows.contains(window.first);
+		});
 }

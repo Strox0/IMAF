@@ -1,7 +1,7 @@
 #include "IMAF/GLLoader.h"
 #include <Windows.h>
 
-bool IMAF::Utils::LoadGlFunctions()
+IMAF::Utils::FunctionDefs::glBindBuffer IMAF::Utils::LoadGlBindBuffer()
 {
 	PROC address = wglGetProcAddress("glBindBuffer");
 
@@ -11,10 +11,8 @@ bool IMAF::Utils::LoadGlFunctions()
 		address == reinterpret_cast<PROC>(3) ||
 		address == reinterpret_cast<PROC>(-1))
 	{
-		return true;
+		return nullptr;
 	}
 
-	IMAF::Utils::glBindBuffer = reinterpret_cast<IMAF::Utils::FunctionDefs::glBindBuffer>(address);
-
-	return false;
+	return reinterpret_cast<IMAF::Utils::FunctionDefs::glBindBuffer>(address);
 }

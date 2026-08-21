@@ -5,6 +5,8 @@
 #include <utility>
 #include <vector>
 #include <thread>
+#include <variant>
+#include <memory>
 
 IMAF::Events::EventHandler::EventHandler() : m_t(&IMAF::Events::EventHandler::Run, this), m_random(1,std::numeric_limits<IMAF::Events::SubID>::max())
 {
@@ -20,7 +22,7 @@ void IMAF::Events::EventHandler::Dispatch(const Event& event)
 {
 	{
 		std::lock_guard<std::mutex> m(m_mutex_queue);
-		m_event_pool.emplace(event);
+		m_job_pool.emplace(event);
 	}
 
 	m_cv.notify_one();
@@ -44,10 +46,10 @@ IMAF::Events::EventSubID IMAF::Events::EventHandler::Subscribe(EventID event_id,
 		std::lock_guard me(m_mutex_events);
 		if (!m_events_map.contains(event_id))
 		{
-			m_events_map.emplace(event_id, std::vector<EventPair>());
+			m_events_map.emplace(event_id, std::vector<std::shared_ptr<EventJob>>());
 		}
 
-		m_events_map[event_id].emplace_back(EventPair(callback, id));
+		m_events_map[event_id].emplace_back(std::make_shared<EventJob>(callback, id));
 	}
 
 	EventSubID subid;
@@ -59,77 +61,143 @@ IMAF::Events::EventSubID IMAF::Events::EventHandler::Subscribe(EventID event_id,
 
 void IMAF::Events::EventHandler::Unsubscribe(EventSubID sub_id)
 {
-	std::lock_guard me(m_mutex_events);
-	if (!m_events_map.contains(sub_id.event_id))
+	bool remove_directly = false;
+	std::shared_ptr<UnsubSignal> signal;
+	{
+		std::lock_guard lock(m_mutex_queue);
+		remove_directly = m_worker_stopped || m_worker_thread_id == std::this_thread::get_id();
+		if (!remove_directly)
+		{
+			signal = std::make_shared<UnsubSignal>();
+			m_job_pool.emplace(Unsub{ sub_id,signal });
+		}
+	}
+
+	if (remove_directly)
+	{
+		RemoveSub(sub_id);
 		return;
-
-	auto it = m_events_map[sub_id.event_id].begin();
-	while (it != m_events_map[sub_id.event_id].end())
-	{
-		if (it->sub_id != sub_id.sub_id)
-		{
-			it++;
-			continue;
-		}
-		
-		break;
 	}
 
-	if (it != m_events_map[sub_id.event_id].end() && it->sub_id == sub_id.sub_id)
-	{
-		m_events_map[sub_id.event_id].erase(it);
+	m_cv.notify_one();
 
-		{
-			std::lock_guard mids(m_mutex_ids);
-			m_ids.erase(sub_id.sub_id);
-		}
-	}
+	std::unique_lock lock(signal->mutex);
+	signal->cv.wait(lock, [&signal]() { return signal->complete; });
 }
 
 void IMAF::Events::EventHandler::End()
 {
-	m_end = true;
+	{
+		std::lock_guard m(m_mutex_queue);
+		m_end = true;
+	}
 	m_cv.notify_all();
 	if (m_t.joinable() && m_t.get_id() != std::this_thread::get_id())
 		m_t.join();
 }
 
+void IMAF::Events::EventHandler::RemoveSub(const EventSubID& sub_id)
+{
+	bool removed = false;
+	{
+		std::lock_guard me(m_mutex_events);
+		auto map_it = m_events_map.find(sub_id.event_id);
+		if (map_it == m_events_map.end())
+			return;
+
+		auto it = map_it->second.begin();
+		while (it != map_it->second.end())
+		{
+			if ((*it)->sub_id == sub_id.sub_id)
+			{
+				(*it)->active = false;
+
+				if (map_it->second.size() == 1)
+					m_events_map.erase(map_it);
+				else
+					map_it->second.erase(it);
+
+				removed = true;
+				break;
+			}
+			++it;
+		}
+	}
+
+	if (removed)
+	{ 
+		std::lock_guard mids(m_mutex_ids);
+		m_ids.erase(sub_id.sub_id);
+	}
+}
+
+void IMAF::Events::EventHandler::ProcessEvent(const Event& event)
+{
+	std::vector<std::shared_ptr<EventJob>> callbacks;
+	{
+		std::lock_guard me(m_mutex_events);
+		auto it = m_events_map.find(event.event_id);
+		if (it == m_events_map.end())
+			return;
+		callbacks = it->second;
+	}
+
+	for (const auto& job : callbacks)
+	{
+		if (!job->active)
+			continue;
+
+		try
+		{
+			if (job->callback(event) == Propagate::Stop)
+				break;
+		}
+		catch (...) {}
+	}
+}
+
 void IMAF::Events::EventHandler::Run()
 {
-	while (!m_end)
 	{
-		Event event;
+		std::lock_guard m(m_mutex_queue);
+		m_worker_thread_id = std::this_thread::get_id();
+	}
+
+	while (true)
+	{
+		Job job;
 		{
 			std::unique_lock<std::mutex> lc(m_mutex_queue);
-			m_cv.wait(lc, [this]() { return !this->m_event_pool.empty() || m_end; });
+			m_cv.wait(lc, [this]() { return !this->m_job_pool.empty() || m_end; });
 
-			if (m_event_pool.empty() || m_end)
-				continue;
-
+			if (m_job_pool.empty())
 			{
-				std::lock_guard me(m_mutex_events);
-				event = std::move(m_event_pool.front());
-				m_event_pool.pop();
-			}
-		}
-
-		std::vector<EventPair> callbacks;
-		{
-			std::lock_guard me(m_mutex_events);
-			auto it = m_events_map.find(event.event_id);
-			if (it == m_events_map.end())
-				continue;
-			callbacks = it->second;
-		}
-
-		for (const auto& [cb,id] : callbacks)
-		{
-			try
-			{
-				if (cb(event) == Propagate::Stop)
+				if (m_end)
+				{
+					m_worker_thread_id = std::thread::id();
+					m_worker_stopped = true;
 					break;
+				}
+				continue;
 			}
-			catch (...) {}
+
+			job = std::move(m_job_pool.front());
+			m_job_pool.pop();
+		}
+
+		if (std::holds_alternative<Event>(job))
+		{
+			ProcessEvent(std::get<Event>(job));
+		}
+		else
+		{
+			Unsub unsub = std::get<Unsub>(job);
+			RemoveSub(unsub.sub_id);
+			{
+				std::lock_guard m(unsub.signal->mutex);
+				unsub.signal->complete = true;
+			}
+			unsub.signal->cv.notify_one();
 		}
 	}
 }
