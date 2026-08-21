@@ -2,27 +2,30 @@
 #include "IMAF/Panel.h"
 #include "IMAF/Scale.h"
 #include <windows.h>
-
 #include "imgui.h"
 #include "imgui_internal.h"
-
 #include "IMAF/Image.h"
+#include "IMAF/Events.h"
 #include <IMAF/IconsFontAwesome6.h>
-#include <GLFW/glfw3.h>
 #include <memory>
+
+constexpr IMAF::Events::EventID IMAGE_TINT_CHANGE = 1;
 
 class ExampleLayer : public IMAF::Panel
 {
 public:
 	ExampleLayer() : m_image("test.jpg") 
 	{
-		m_image.SetImageTint(IM_COL32(255, 0, 0, 255));
+		IMAF::Events::Subscribe(IMAGE_TINT_CHANGE, [this]() -> IMAF::Events::Propagate 
+			{
+				this->ChangeTint();
+				return IMAF::Events::Propagate::Stop;
+			}
+		);
 	}
 
 	void UiRender() override
 	{
-		//ImGui::ShowDemoWindow();
-		
 		IMAF::Begin("Hello");
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 		ImGui::Text("Icons : " ICON_FA_ANCHOR ICON_FA_BANDAGE ICON_FA_HOTEL ICON_FA_HAMMER ICON_FA_KEY ICON_FA_CHECK ICON_FA_USER);
@@ -31,11 +34,38 @@ public:
 		image_size.y = m_image.GetSize().y;
 		IMAF::DisplayImGuiImage(m_image,image_size);
 		IMAF::End();
+	}
 
+	void ChangeTint()
+	{
+		m_red_tint = !m_red_tint;
+		if (m_red_tint)
+		{
+			m_image.SetImageTint(IM_COL32(255, 0, 0, 255));
+		}
+		else
+		{
+			m_image.SetImageTint(IM_COL32(255, 255, 255, 255));
+		}
+	}
+
+private:
+	IMAF::Image m_image;
+	bool m_red_tint = false;
+};
+
+class SecondLayer : public IMAF::Panel
+{
+public:
+	void UiRender() override
+	{
 		IMAF::Begin("Something");
-		
+
 		ImGui::PushFont(IMAF::GetFont(FONT_EXTRABOLD_NORMAL));
-		ImGui::Button("Click me", { IMAF::Val(200.f,100.f) });
+		if (ImGui::Button("Change Image Tint", { IMAF::Val(200.f,100.f) }))
+		{
+			IMAF::Events::Notify(IMAGE_TINT_CHANGE);
+		}
 		ImGui::PopFont();
 		ImGui::PushFont(IMAF::GetFont(FONT_LARGE_ICON));
 		ImGui::Button(ICON_FA_THUMBS_UP, { IMAF::Val(200.f,100.f) });
@@ -43,9 +73,6 @@ public:
 
 		IMAF::End();
 	}
-
-private:
-	IMAF::Image m_image;
 };
 
 void dock_setup(ImGuiID dockspace_id,bool& firstrun)
@@ -90,7 +117,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	IMAF::Application& app = IMAF::Application::Create(props);
 
 	std::shared_ptr<ExampleLayer> ptr = std::make_shared<ExampleLayer>();
+	std::shared_ptr<SecondLayer> ptr2 = std::make_shared<SecondLayer>();
 	app.AddPanel(ptr);
+	app.AddPanel(ptr2);
 
 	app.AddDefDockingSetup(dock_setup);
 
