@@ -28,6 +28,13 @@ void IMAF::Events::EventHandler::Dispatch(const Event& event)
 	m_cv.notify_one();
 }
 
+void IMAF::Events::EventHandler::Notify(EventID id)
+{
+	Event e;
+	e.event_id = id;
+	Dispatch(e);
+}
+
 IMAF::Events::EventSubID IMAF::Events::EventHandler::Subscribe(EventID event_id, EventCallback callback)
 {
 	SubID id = 0;
@@ -56,6 +63,37 @@ IMAF::Events::EventSubID IMAF::Events::EventHandler::Subscribe(EventID event_id,
 	subid.event_id = event_id;
 	subid.sub_id = id;
 	
+	return subid;
+}
+
+IMAF::Events::EventSubID IMAF::Events::EventHandler::Subscribe(EventID event_id, NotifyCallback callback)
+{
+	SubID id = 0;
+
+	{
+		std::lock_guard<std::mutex> mids(m_mutex_ids);
+
+		do
+		{
+			id = m_random.Gen();
+		} while (m_ids.contains(id));
+		m_ids.insert(id);
+	}
+
+	{
+		std::lock_guard me(m_mutex_events);
+		if (!m_events_map.contains(event_id))
+		{
+			m_events_map.emplace(event_id, std::vector<std::shared_ptr<EventJob>>());
+		}
+
+		m_events_map[event_id].emplace_back(std::make_shared<EventJob>(callback, id));
+	}
+
+	EventSubID subid;
+	subid.event_id = event_id;
+	subid.sub_id = id;
+
 	return subid;
 }
 
@@ -149,8 +187,16 @@ void IMAF::Events::EventHandler::ProcessEvent(const Event& event)
 
 		try
 		{
-			if (job->callback(event) == Propagate::Stop)
-				break;
+			if (job->callback != nullptr)
+			{
+				if (job->callback(event) == Propagate::Stop)
+					break;
+			}
+			else
+			{
+				if (job->notify_callback() == Propagate::Stop)
+					break;
+			}
 		}
 		catch (...) {}
 	}

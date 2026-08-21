@@ -32,8 +32,10 @@ namespace IMAF
 			~EventHandler();
 
 			void Dispatch(const Event& event);
+			void Notify(EventID id);
 
 			EventSubID Subscribe(EventID event_id, EventCallback callback);
+			EventSubID Subscribe(EventID event_id, NotifyCallback callback);
 
 			void Unsubscribe(EventSubID sub_id);
 
@@ -43,9 +45,11 @@ namespace IMAF
 			struct EventJob
 			{
 				EventCallback callback;
+				NotifyCallback notify_callback;
 				SubID sub_id;
 				bool active;
-				EventJob(EventCallback cb, SubID id) : callback(cb), sub_id(id), active(true) {};
+				EventJob(EventCallback cb, SubID id) : callback(cb), sub_id(id), active(true), notify_callback(nullptr) {};
+				EventJob(NotifyCallback cb, SubID id) : callback(nullptr), sub_id(id), active(true), notify_callback(cb) {};
 			};
 
 			struct UnsubSignal

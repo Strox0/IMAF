@@ -24,6 +24,7 @@ namespace IMAF
 		};
 
 		using EventCallback = std::function<Propagate(const Event&)>;
+		using NotifyCallback = std::function<Propagate()>;
 
 		struct EventSubID
 		{
@@ -39,9 +40,11 @@ namespace IMAF
 		//Non Blocking
 		void Dispatch(const Event& event);
 		void Dispatch(EventID event_id, std::any data);
+		void Notify(EventID event_id);
 
 		//Order is call order
 		EventSubID Subscribe(EventID event_id, EventCallback callback);
+		EventSubID Subscribe(EventID event_id, NotifyCallback callback);
 
 		void Unsubscribe(EventSubID sub_id);
 		
