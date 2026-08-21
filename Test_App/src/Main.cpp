@@ -16,12 +16,17 @@ class ExampleLayer : public IMAF::Panel
 public:
 	ExampleLayer() : m_image("test.jpg") 
 	{
-		IMAF::Events::Subscribe(IMAGE_TINT_CHANGE, [this]() -> IMAF::Events::Propagate 
+		m_esub = IMAF::Events::Subscribe(IMAGE_TINT_CHANGE, [this]() -> IMAF::Events::Propagate 
 			{
 				this->ChangeTint();
 				return IMAF::Events::Propagate::Stop;
 			}
 		);
+	}
+
+	~ExampleLayer()
+	{
+		IMAF::Events::Unsubscribe(m_esub);
 	}
 
 	void UiRender() override
@@ -52,6 +57,7 @@ public:
 private:
 	IMAF::Image m_image;
 	bool m_red_tint = false;
+	IMAF::Events::EventSubID m_esub;
 };
 
 class SecondLayer : public IMAF::Panel
