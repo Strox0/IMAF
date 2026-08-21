@@ -745,7 +745,7 @@ namespace IMAF
 			chain->startOffset = i.start_offset;
 		}
 		
-		glfCustomTitlebarRemoveExclusions(mp_window);
+		glfwCustomTitlebarRemoveExclusions(mp_window);
 		if (start)
 			glfwCustomTitlebarAddExclusion(mp_window, start);
 
